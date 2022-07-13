@@ -47,7 +47,13 @@ class Data : public Object {
     serialize(std::forward<T>(obj), data_);
   }
 
-  template <typename T>
+  template <typename T> requires bridge_data_type<T>
+  Data& operator=(T&& obj) {
+    data_type_ = DataTypeTrait<T>::dt;
+    serialize(std::forward<T>(obj), data_);
+  }
+
+  template <typename T> requires bridge_data_type<T>
   std::optional<T> Get() const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
@@ -63,6 +69,10 @@ class Data : public Object {
       return nullptr;
     }
     return &data_[0];
+  }
+
+  uint8_t GetDataType() const {
+    return data_type_;
   }
 
   template <typename Inner>
@@ -329,14 +339,14 @@ class ObjectWrapper {
   template <typename T>
   std::optional<T> Get() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<T>(nullptr);
+      return std::optional<T>();
     }
     return static_cast<const Data*>(obj_)->Get<T>();
   }
 
   std::optional<const char*> GetRaw() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<const char*>(nullptr);
+      return std::optional<const char*>();
     }
     return static_cast<const Data*>(obj_)->GetRaw();
   }

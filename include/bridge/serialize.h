@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "bridge/type_trait.h"
+
 namespace bridge {
 
 template <typename T>
@@ -11,8 +13,12 @@ inline void serialize(const T& obj, std::vector<char>& container);
 
 template <size_t n>
 inline void serialize(const char (&arr)[n], std::vector<char>& container) {
-  container.resize(n);
-  memcpy(&container[0], &(arr[0]), n);
+  size_t real_n = n;
+  if (n > 0 && arr[n-1] == '\0') {
+    real_n = n - 1;
+  }
+  container.resize(real_n);
+  memcpy(&container[0], &(arr[0]), real_n);
 }
 
 template <>
@@ -25,6 +31,12 @@ inline void serialize(const std::string& obj, std::vector<char>& container) {
 template <>
 inline void serialize(const std::vector<char>& obj, std::vector<char>& container) {
   container = obj;
+}
+
+template <typename T>
+requires bridge_integral<T> inline void serialize(const T& obj, std::vector<char>& container) {
+  container.resize(sizeof(obj));
+  memcpy(&container[0], &obj, sizeof(obj));
 }
 
 template <typename Outer>

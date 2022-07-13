@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "bridge/object_type.h"
+#include "bridge/type_trait.h"
 #include "bridge/varint.h"
 
 namespace bridge {
@@ -32,6 +33,16 @@ inline std::vector<char> parse(const char* ptr, size_t n) {
     assert(n != 0);
     ret.resize(n);
     memcpy(&ret[0], ptr, n);
+  }
+  return ret;
+}
+
+template <typename T>
+requires bridge_integral<T> inline T parse(const char* ptr, size_t n) {
+  T ret{0};
+  if (ptr != nullptr) {
+    assert(n == sizeof(T));
+    memcpy(&ret, ptr, n);
   }
   return ret;
 }
