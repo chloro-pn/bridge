@@ -1,8 +1,8 @@
 #pragma once
 
 #include <string>
-#include <vector>
 #include <type_traits>
+#include <vector>
 
 namespace bridge {
 
@@ -41,16 +41,31 @@ struct bridge_cstr_ref_trait {
 };
 
 template <size_t n>
-struct bridge_cstr_ref_trait<char(&)[n]> {
+struct bridge_cstr_ref_trait<char (&)[n]> {
   static constexpr bool value = true;
 };
 
 template <size_t n>
-struct bridge_cstr_ref_trait<const char(&)[n]> {
+struct bridge_cstr_ref_trait<const char (&)[n]> {
   static constexpr bool value = true;
 };
 
 template <typename T>
-concept bridge_data_type = bridge_integral<T> || std::is_same_v<std::string, T> || std::is_same_v<std::vector<char>, T> || bridge_cstr_ref_trait<T>::value;
+concept bridge_data_type = bridge_integral<T> || std::is_same_v<std::string, T> ||
+                           std::is_same_v<std::vector<char>, T> || bridge_cstr_ref_trait<T>::value;
+
+template <typename T>
+concept bridge_inner_concept = requires(const T& inner, size_t n) {
+  { inner.curAddr() } -> std::same_as<const char*>;
+  {inner.skip(n)};
+  { inner.outOfRange() } -> std::same_as<bool>;
+};
+
+template <typename T>
+concept bridge_outer_concept = requires(T& outer, char c, std::string s, const char* ptr, size_t len) {
+  {outer.push_back(c)};
+  {outer.append(s)};
+  {outer.append(ptr, len)};
+};
 
 };  // namespace bridge

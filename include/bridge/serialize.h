@@ -14,7 +14,7 @@ inline void serialize(const T& obj, std::vector<char>& container);
 template <size_t n>
 inline void serialize(const char (&arr)[n], std::vector<char>& container) {
   size_t real_n = n;
-  if (n > 0 && arr[n-1] == '\0') {
+  if (n > 0 && arr[n - 1] == '\0') {
     real_n = n - 1;
   }
   container.resize(real_n);
@@ -40,12 +40,12 @@ requires bridge_integral<T> inline void serialize(const T& obj, std::vector<char
 }
 
 template <typename Outer>
-void seriDataType(uint8_t dt, Outer& outer) {
+requires bridge_outer_concept<Outer> void seriDataType(uint8_t dt, Outer& outer) {
   outer.push_back(static_cast<char>(dt));
 }
 
 template <typename Outer>
-void seriLength(uint32_t length, Outer& outer) {
+requires bridge_outer_concept<Outer> void seriLength(uint32_t length, Outer& outer) {
   char buf[128];
   unsigned char bytes = 0;
   varint_encode(length, buf, sizeof(buf), &bytes);
@@ -53,7 +53,7 @@ void seriLength(uint32_t length, Outer& outer) {
 }
 
 template <typename Outer>
-void seriObjectType(ObjectType type, Outer& outer) {
+requires bridge_outer_concept<Outer> void seriObjectType(ObjectType type, Outer& outer) {
   assert(type != ObjectType::Invalid);
   char tmp = ObjectTypeToChar(type);
   outer.push_back(tmp);

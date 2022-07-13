@@ -1,9 +1,9 @@
-#include "gtest/gtest.h"
-
 #include "bridge/object.h"
 
-#include <string>
 #include <memory>
+#include <string>
+
+#include "gtest/gtest.h"
 using namespace bridge;
 
 TEST(object, factory) {

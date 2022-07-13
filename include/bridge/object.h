@@ -25,10 +25,10 @@ class Object {
   virtual ~Object() = default;
 
   template <typename Inner>
-  void valueParse(const Inner& inner, size_t& offset);
+  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset);
 
   template <typename Outer>
-  void valueSeri(Outer& outer) const;
+  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const;
 
  private:
   ObjectType type_;
@@ -47,14 +47,14 @@ class Data : public Object {
     serialize(std::forward<T>(obj), data_);
   }
 
-  template <typename T> requires bridge_data_type<T>
-  Data& operator=(T&& obj) {
+  template <typename T>
+  requires bridge_data_type<T> Data& operator=(T&& obj) {
     data_type_ = DataTypeTrait<T>::dt;
     serialize(std::forward<T>(obj), data_);
   }
 
-  template <typename T> requires bridge_data_type<T>
-  std::optional<T> Get() const {
+  template <typename T>
+  requires bridge_data_type<T> std::optional<T> Get() const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
@@ -71,12 +71,10 @@ class Data : public Object {
     return &data_[0];
   }
 
-  uint8_t GetDataType() const {
-    return data_type_;
-  }
+  uint8_t GetDataType() const { return data_type_; }
 
   template <typename Inner>
-  void valueParse(const Inner& inner, size_t& offset) {
+  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset) {
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -97,7 +95,7 @@ class Data : public Object {
   }
 
   template <typename Outer>
-  void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = data_.size() + 1;
     seriLength(length, outer);
@@ -130,7 +128,7 @@ class Array : public Object {
   }
 
   template <typename Inner>
-  void valueParse(const Inner& inner, size_t& offset) {
+  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset) {
     objects_.clear();
     parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -152,7 +150,7 @@ class Array : public Object {
   }
 
   template <typename Outer>
-  void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
     std::string tmp;
     uint32_t count = objects_.size();
     seriLength(count, tmp);
@@ -208,7 +206,7 @@ class Map : public Object {
   void Clear() { objects_.clear(); }
 
   template <typename Inner>
-  void valueParse(const Inner& inner, size_t& offset) {
+  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset) {
     objects_.clear();
     parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -247,7 +245,7 @@ class Map : public Object {
   }
 
   template <typename Outer>
-  void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
     std::string tmp;
     uint32_t count = objects_.size();
     seriLength(count, tmp);
@@ -268,7 +266,7 @@ class Map : public Object {
 };
 
 template <typename Inner>
-void Object::valueParse(const Inner& inner, size_t& offset) {
+requires bridge_inner_concept<Inner> void Object::valueParse(const Inner& inner, size_t& offset) {
   if (type_ == ObjectType::Map) {
     static_cast<Map*>(this)->valueParse(inner, offset);
   } else if (type_ == ObjectType::Array) {
@@ -279,7 +277,7 @@ void Object::valueParse(const Inner& inner, size_t& offset) {
 }
 
 template <typename Outer>
-void Object::valueSeri(Outer& outer) const {
+requires bridge_outer_concept<Outer> void Object::valueSeri(Outer& outer) const {
   if (type_ == ObjectType::Map) {
     static_cast<const Map*>(this)->valueSeri(outer);
   } else if (type_ == ObjectType::Array) {
