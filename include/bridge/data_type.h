@@ -12,6 +12,7 @@ namespace bridge {
 #define BRIDGE_UINT32 0x03
 #define BRIDGE_INT64 0x04
 #define BRIDGE_UINT64 0x05
+#define BRIDGE_CUSTOM 0x0C
 #define BRIDGE_INVALID 0x0D
 
 template <typename T>
@@ -34,7 +35,8 @@ DataTypeTraitStruct(uint64_t, UINT64);
 
 template <typename T>
 struct DataTypeTrait {
-  static constexpr uint8_t dt = InnerDataTypeTrait<T>::dt;
+  using decay_t = std::remove_const_t<std::remove_reference_t<T>>;
+  static constexpr uint8_t dt = InnerDataTypeTrait<decay_t>::dt;
 };
 
 template <size_t n>

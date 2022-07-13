@@ -27,7 +27,7 @@ TEST(object, data) {
   EXPECT_EQ(data.Get<std::string>().value(), "hello world");
   EXPECT_EQ(data.GetDataType(), BRIDGE_STRING);
   data = uint32_t(32);
-  EXPECT_EQ(data.Get<uint32_t>().value(), 32);
+  EXPECT_EQ(data.Get<uint32_t>().value(), (int32_t)32);
   EXPECT_EQ(data.GetDataType(), BRIDGE_UINT32);
   char cstr[6] = "world";
   data = cstr;
@@ -36,4 +36,32 @@ TEST(object, data) {
   const char* ptr = data.GetRaw();
   EXPECT_EQ(*ptr, 'w');
   EXPECT_EQ(*(ptr + 1), 'o');
+}
+
+TEST(object, array) {
+  Array arr;
+  EXPECT_EQ(arr.GetType(), ObjectType::Array);
+  EXPECT_EQ(arr[1], nullptr);
+  EXPECT_EQ(arr.Size(), 0);
+  arr.Insert(ValueFactory<Data>(int32_t(32)));
+  arr.Insert(ValueFactory<Data>("chloro"));
+  EXPECT_EQ(arr.Size(), 2);
+  auto v = arr[0];
+  EXPECT_EQ(v->GetType(), ObjectType::Data);
+  EXPECT_EQ(AsData(v)->GetDataType(), BRIDGE_INT32);
+  EXPECT_EQ(AsData(arr[1])->GetDataType(), BRIDGE_STRING);
+}
+
+struct TestStruct {
+  std::vector<char> SerializeToBridge() const {
+    return {'h', 'e', 'l', 'l', '0'};
+  }
+};
+
+TEST(object, custom) {
+  Data data{TestStruct()};
+  EXPECT_EQ(data.GetType(), ObjectType::Data);
+  EXPECT_EQ(data.GetDataType(), BRIDGE_CUSTOM);
+  EXPECT_EQ(data.GetRaw()[0], 'h');
+  EXPECT_EQ(data.GetRaw()[1], 'e');
 }

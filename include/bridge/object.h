@@ -47,10 +47,22 @@ class Data : public Object {
     serialize(std::forward<T>(obj), data_);
   }
 
+  template <bridge_custom_type T>
+  explicit Data(T&& obj) : Object(ObjectType::Data) {
+    data_type_ = BRIDGE_CUSTOM;
+    serialize(obj.SerializeToBridge(), data_);
+  }
+
   template <typename T>
-  requires bridge_data_type<T> Data& operator=(T&& obj) {
+  Data& operator=(T&& obj) {
     data_type_ = DataTypeTrait<T>::dt;
     serialize(std::forward<T>(obj), data_);
+  }
+
+  template <bridge_custom_type T>
+  Data& operator=(T&& obj) {
+    data_type_ = BRIDGE_CUSTOM;
+    serialize(obj.SerializeToBridge(), data_);
   }
 
   template <typename T>
@@ -288,11 +300,11 @@ requires bridge_outer_concept<Outer> void Object::valueSeri(Outer& outer) const 
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<T> ValueFactory(Args&&... args) {
+inline std::unique_ptr<T> ValueFactory(Args&&... args) {
   return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
-std::unique_ptr<Object> ObjectFactory(ObjectType type) {
+inline std::unique_ptr<Object> ObjectFactory(ObjectType type) {
   if (type == ObjectType::Data) {
     return ValueFactory<Data>();
   } else if (type == ObjectType::Map) {
@@ -355,28 +367,40 @@ class ObjectWrapper {
   const Object* obj_;
 };
 
-inline Map* AsMap(std::unique_ptr<Object>& obj) {
+inline Map* AsMap(Object* obj) {
   if (obj->GetType() != ObjectType::Map) {
     return nullptr;
   }
-  return static_cast<Map*>(obj.get());
+  return static_cast<Map*>(obj);
 }
 
-inline Array* AsArray(std::unique_ptr<Object>& obj) {
+inline const Map* AsMap(const Object* obj) { return AsMap(const_cast<Object*>(obj)); }
+
+inline Map* AsMap(std::unique_ptr<Object>& obj) { return AsMap(obj.get()); }
+
+inline Array* AsArray(Object* obj) {
   if (obj->GetType() != ObjectType::Array) {
     return nullptr;
   }
-  return static_cast<Array*>(obj.get());
+  return static_cast<Array*>(obj);
 }
 
-inline Data* AsData(std::unique_ptr<Object>& obj) {
+inline const Array* AsArray(const Object* obj) { return AsArray(const_cast<Object*>(obj)); }
+
+inline Array* AsArray(std::unique_ptr<Object>& obj) { return AsArray(obj.get()); }
+
+inline Data* AsData(Object* obj) {
   if (obj->GetType() != ObjectType::Data) {
     return nullptr;
   }
-  return static_cast<Data*>(obj.get());
+  return static_cast<Data*>(obj);
 }
 
-std::string Serialize(std::unique_ptr<Object>&& obj) {
+inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>(obj)); }
+
+inline Data* AsData(std::unique_ptr<Object>& obj) { return AsData(obj.get()); }
+
+inline std::string Serialize(std::unique_ptr<Object>&& obj) {
   Map root;
   root.Insert("root", std::move(obj));
   std::string ret;
@@ -384,7 +408,7 @@ std::string Serialize(std::unique_ptr<Object>&& obj) {
   return ret;
 }
 
-std::unique_ptr<Object> Parse(const std::string& content) {
+inline std::unique_ptr<Object> Parse(const std::string& content) {
   auto root = ValueFactory<Map>();
   size_t offset = 0;
   InnerWrapper wrapper(content);
