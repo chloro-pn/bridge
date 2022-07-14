@@ -33,9 +33,9 @@ TEST(object, data) {
   data = cstr;
   EXPECT_EQ(data.GetDataType(), BRIDGE_STRING);
   EXPECT_EQ(data.Get<std::string>().value(), "world");
-  const char* ptr = data.GetRaw();
-  EXPECT_EQ(*ptr, 'w');
-  EXPECT_EQ(*(ptr + 1), 'o');
+  auto view = data.GetView();
+  EXPECT_EQ(view[0], 'w');
+  EXPECT_EQ(view[1], 'o');
 }
 
 TEST(object, array) {
@@ -74,7 +74,8 @@ TEST(object, custom) {
   Data data{TestStruct()};
   EXPECT_EQ(data.GetType(), ObjectType::Data);
   EXPECT_EQ(data.GetDataType(), BRIDGE_CUSTOM);
-  EXPECT_EQ(data.GetSize(), 5);
-  EXPECT_EQ(data.GetRaw()[0], 'h');
-  EXPECT_EQ(data.GetRaw()[1], 'e');
+  std::string_view view = data.GetView();
+  EXPECT_EQ(view.size(), 5);
+  EXPECT_EQ(view[0], 'h');
+  EXPECT_EQ(view[1], 'e');
 }
