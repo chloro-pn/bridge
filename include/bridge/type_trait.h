@@ -55,12 +55,14 @@ struct bridge_cstr_ref_trait<const char (&)[n]> {
  */
 template <typename T>
 concept bridge_custom_type = requires(const T& t) {
-  { t.SerializeToBridge() } -> std::same_as<std::vector<char>>;
+  { t.SerializeToBridge() }
+  ->std::same_as<std::vector<char>>;
 };
 
 template <typename T>
-concept bridge_data_type = bridge_integral<T> || std::is_same_v<std::string, T> ||
-                           std::is_same_v<std::vector<char>, T> || bridge_cstr_ref_trait<T>::value || bridge_custom_type<T>;
+concept bridge_data_type =
+    bridge_integral<T> || std::is_same_v<std::string, T> || std::is_same_v<std::vector<char>, T> ||
+    bridge_cstr_ref_trait<T>::value || bridge_custom_type<T>;
 
 template <typename T>
 concept bridge_inner_concept = requires(const T& inner, size_t n) {

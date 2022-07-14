@@ -83,6 +83,8 @@ class Data : public Object {
     return &data_[0];
   }
 
+  size_t GetSize() const { return data_.size(); }
+
   uint8_t GetDataType() const { return data_type_; }
 
   template <typename Inner>
@@ -359,6 +361,13 @@ class ObjectWrapper {
       return std::optional<const char*>();
     }
     return static_cast<const Data*>(obj_)->GetRaw();
+  }
+
+  std::optional<size_t> GetSize() const {
+    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
+      return std::optional<size_t>();
+    }
+    return static_cast<const Data*>(obj_)->GetSize();
   }
 
   bool Empty() const { return obj_ == nullptr; }
