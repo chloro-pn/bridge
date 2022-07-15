@@ -384,6 +384,8 @@ class MapView : public Object {
     outer.append(tmp);
   }
 
+  size_t Size() const { return objects_.size(); }
+
  private:
   std::unordered_map<std::string_view, std::unique_ptr<Object>> objects_;
 };
@@ -457,6 +459,13 @@ class ObjectWrapper {
 
   explicit ObjectWrapper(const Object* obj) : obj_(obj) {}
 
+  std::optional<ObjectType> GetType() const {
+    if (obj_ == nullptr) {
+      return std::optional<ObjectType>();
+    }
+    return obj_->GetType();
+  }
+
   ObjectWrapper operator[](const std::string& key) const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Map) {
       return ObjectWrapper(nullptr);
@@ -476,11 +485,15 @@ class ObjectWrapper {
   }
 
   std::optional<size_t> Size() const {
-    if (obj_ == nullptr || (obj_->GetType() != ObjectType::Map || obj_->GetType() != ObjectType::Array)) {
+    if (obj_ == nullptr || (obj_->GetType() != ObjectType::Map && obj_->GetType() != ObjectType::Array)) {
       return std::optional<size_t>();
     }
     if (obj_->GetType() == ObjectType::Map) {
-      return static_cast<const Map*>(obj_)->Size();
+      if (obj_->IsRefType() == false) {
+        return static_cast<const Map*>(obj_)->Size();
+      } else {
+        return static_cast<const MapView*>(obj_)->Size();
+      }
     }
     return static_cast<const Array*>(obj_)->Size();
   }
