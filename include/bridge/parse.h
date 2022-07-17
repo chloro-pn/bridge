@@ -9,6 +9,7 @@
 #include "bridge/object_type.h"
 #include "bridge/type_trait.h"
 #include "bridge/varint.h"
+#include "bridge/util.h"
 
 namespace bridge {
 
@@ -43,6 +44,9 @@ requires bridge_integral<T> inline T parse(const char* ptr, size_t n) {
   if (ptr != nullptr) {
     assert(n == sizeof(T));
     memcpy(&ret, ptr, n);
+  }
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
+    return flipByByte(ret);
   }
   return ret;
 }

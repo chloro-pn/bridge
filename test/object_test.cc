@@ -67,7 +67,7 @@ TEST(object, map) {
 }
 
 struct TestStruct {
-  std::vector<char> SerializeToBridge() const { return {'h', 'e', 'l', 'l', '0'}; }
+  std::vector<char> SerializeToBridge() const { return {'h', 'e', 'l', 'l', 'o'}; }
 };
 
 TEST(object, custom) {
@@ -76,6 +76,5 @@ TEST(object, custom) {
   EXPECT_EQ(data.GetDataType(), BRIDGE_CUSTOM);
   std::string_view view = data.GetView();
   EXPECT_EQ(view.size(), 5);
-  EXPECT_EQ(view[0], 'h');
-  EXPECT_EQ(view[1], 'e');
+  EXPECT_EQ(view, "hello");
 }

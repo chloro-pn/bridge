@@ -35,8 +35,12 @@ inline void serialize(const std::vector<char>& obj, std::vector<char>& container
 
 template <typename T>
 requires bridge_integral<T> inline void serialize(const T& obj, std::vector<char>& container) {
+  T tmp = obj;
   container.resize(sizeof(obj));
-  memcpy(&container[0], &obj, sizeof(obj));
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
+    tmp = flipByByte(tmp);
+  }
+  memcpy(&container[0], &tmp, sizeof(tmp));
 }
 
 template <typename Outer>
