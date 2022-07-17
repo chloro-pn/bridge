@@ -8,8 +8,8 @@
 
 #include "bridge/object_type.h"
 #include "bridge/type_trait.h"
-#include "bridge/varint.h"
 #include "bridge/util.h"
+#include "bridge/varint.h"
 
 namespace bridge {
 

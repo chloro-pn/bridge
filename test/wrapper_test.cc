@@ -1,6 +1,5 @@
-#include <memory>
-
 #include <cstdint>
+#include <memory>
 
 #include "bridge/object.h"
 #include "gtest/gtest.h"

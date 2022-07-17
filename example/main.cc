@@ -1,7 +1,7 @@
-#include <memory>
-#include <iostream>
-#include <string>
 #include <cassert>
+#include <iostream>
+#include <memory>
+#include <string>
 
 #include "bridge/object.h"
 

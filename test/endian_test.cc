@@ -1,10 +1,9 @@
-#include "bridge/adaptor.h"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "bridge/adaptor.h"
 #include "bridge/util.h"
 #include "gtest/gtest.h"
 using namespace bridge;
