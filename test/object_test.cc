@@ -67,14 +67,26 @@ TEST(object, map) {
 }
 
 struct TestStruct {
-  std::vector<char> SerializeToBridge() const { return {'h', 'e', 'l', 'l', 'o'}; }
+  std::vector<char> SerializeToBridge() const { return {c, 'h', 'e', 'l', 'l', 'o'}; }
+  static TestStruct ConstructFromBridge(const std::vector<char>& bytes) {
+    TestStruct obj('a');
+    assert(bytes.size() == 6 && bytes[1] == 'h' && bytes[5] == 'o');
+    obj.c = bytes[0];
+    return obj;
+  }
+
+  char c;
+  TestStruct(char cc) : c(cc) {}
 };
 
 TEST(object, custom) {
-  Data data{TestStruct()};
+  Data data{TestStruct('x')};
   EXPECT_EQ(data.GetType(), ObjectType::Data);
   EXPECT_EQ(data.GetDataType(), BRIDGE_CUSTOM);
   std::string_view view = data.GetView();
-  EXPECT_EQ(view.size(), 5);
-  EXPECT_EQ(view, "hello");
+  EXPECT_EQ(view.size(), 6);
+  EXPECT_EQ(view, "xhello");
+  auto it = data.Get<TestStruct>();
+  EXPECT_EQ(it.has_value(), true);
+  EXPECT_EQ(it.value().c, 'x');
 }

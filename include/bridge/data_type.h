@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "bridge/type_trait.h"
+
 namespace bridge {
 
 #define BRIDGE_BYTES 0x00
@@ -17,7 +19,7 @@ namespace bridge {
 
 template <typename T>
 struct InnerDataTypeTrait {
-  static constexpr uint8_t dt = BRIDGE_INVALID;
+  static constexpr uint8_t dt = BRIDGE_CUSTOM;
 };
 
 #define DataTypeTraitStruct(x, y)             \

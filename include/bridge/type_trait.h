@@ -51,18 +51,23 @@ struct bridge_cstr_ref_trait<const char (&)[n]> {
 };
 
 /*
- * 自定义类型可以接入bridge，只要定义SerializeToBridge的常量成员函数即可，返回值为序列化后的二进制序列
+ * 自定义类型可以接入bridge
  */
 template <typename T>
-concept bridge_custom_type = requires(const T& t) {
+concept bridge_custom_type = requires(const T& t, const std::vector<char>& bytes) {
   { t.SerializeToBridge() }
   ->std::same_as<std::vector<char>>;
+  { T::ConstructFromBridge(bytes) }
+  ->std::same_as<T>;
 };
 
 template <typename T>
 concept bridge_data_type =
     bridge_integral<T> || std::is_same_v<std::string, T> || std::is_same_v<std::vector<char>, T> ||
     bridge_cstr_ref_trait<T>::value || bridge_custom_type<T>;
+
+template <typename T>
+concept bridge_type = bridge_custom_type<T> || bridge_data_type<T>;
 
 template <typename T>
 concept bridge_inner_concept = requires(const T& inner, size_t n) {

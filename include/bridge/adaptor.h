@@ -9,7 +9,7 @@
 namespace bridge {
 
 template <typename T>
-requires bridge_data_type<T> inline std::unique_ptr<Object> vector(const std::vector<T>& vec) {
+requires bridge_type<T> inline std::unique_ptr<Object> vector(const std::vector<T>& vec) {
   auto ret = ValueFactory<Array>();
   for (const auto& each : vec) {
     auto v = ValueFactory<Data>(each);
@@ -19,7 +19,7 @@ requires bridge_data_type<T> inline std::unique_ptr<Object> vector(const std::ve
 }
 
 template <typename T>
-requires bridge_data_type<T> inline std::unique_ptr<Object> unorderde_map(
+requires bridge_type<T> inline std::unique_ptr<Object> unorderde_map(
     const std::unordered_map<std::string, T>& map) {
   auto ret = ValueFactory<Map>();
   for (const auto& each : map) {

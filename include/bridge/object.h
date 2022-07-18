@@ -47,12 +47,14 @@ class Data : public Object {
   template <typename T>
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
     serialize(std::forward<T>(obj), data_);
   }
 
   template <bridge_custom_type T>
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
-    data_type_ = BRIDGE_CUSTOM;
+    data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ == BRIDGE_CUSTOM);
     serialize(obj.SerializeToBridge(), data_);
   }
 
@@ -77,6 +79,17 @@ class Data : public Object {
       return std::optional<T>();
     }
     return std::optional(parse<T>(data_));
+  }
+
+  template <typename T>
+  requires bridge_custom_type<T> std::optional<T> Get() const {
+    static_assert(NoRefNoPointer<T>::value,
+                  "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
+    // 当处于不合法状态时，总是返回空的optional
+    if (DataTypeTrait<T>::dt != data_type_) {
+      return std::optional<T>();
+    }
+    return std::optional(T::ConstructFromBridge(data_));
   }
 
   std::string_view GetView() const { return std::string_view(static_cast<const char*>(&data_[0]), data_.size()); }
