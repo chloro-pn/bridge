@@ -19,8 +19,7 @@ requires bridge_type<T> inline std::unique_ptr<Object> vector(const std::vector<
 }
 
 template <typename T>
-requires bridge_type<T> inline std::unique_ptr<Object> unorderde_map(
-    const std::unordered_map<std::string, T>& map) {
+requires bridge_type<T> inline std::unique_ptr<Object> unorderde_map(const std::unordered_map<std::string, T>& map) {
   auto ret = ValueFactory<Map>();
   for (const auto& each : map) {
     ret->Insert(each.first, ValueFactory<Data>(each.second));

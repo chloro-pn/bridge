@@ -62,9 +62,8 @@ concept bridge_custom_type = requires(const T& t, const std::vector<char>& bytes
 };
 
 template <typename T>
-concept bridge_data_type =
-    bridge_integral<T> || std::is_same_v<std::string, T> || std::is_same_v<std::vector<char>, T> ||
-    bridge_cstr_ref_trait<T>::value || bridge_custom_type<T>;
+concept bridge_data_type = bridge_integral<T> || std::is_same_v<std::string, T> ||
+                           std::is_same_v<std::vector<char>, T> || bridge_cstr_ref_trait<T>::value;
 
 template <typename T>
 concept bridge_type = bridge_custom_type<T> || bridge_data_type<T>;

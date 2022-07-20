@@ -43,3 +43,37 @@ TEST(object, wrapper) {
   std::intptr_t p3 = reinterpret_cast<std::intptr_t>(&v[0]);
   EXPECT_TRUE(p3 >= p1 && p2 >= p3);
 }
+
+TEST(object, wrapper_iter) {
+  auto map = ValueFactory<Map>();
+  auto arr = ValueFactory<Array>();
+  auto v1 = ValueFactory<Data>("hello");
+  auto v2 = ValueFactory<Data>("world");
+  auto v3 = ValueFactory<Data>(uint32_t(0));
+  arr->Insert(std::move(v1));
+  arr->Insert(std::move(v2));
+  arr->Insert(std::move(v3));
+  map->Insert("key", std::move(arr));
+  map->Insert("key2", ValueFactory<Data>(uint32_t(15)));
+  ObjectWrapper wrapper(map.get());
+  ObjectWrapperIterator iter = wrapper.GetIteraotr().value();
+  bool find_key = false;
+  bool find_key2 = false;
+  for (; iter.Valid(); ++iter) {
+    if (iter.GetKey() == "key") {
+      EXPECT_EQ(find_key, false);
+      find_key = true;
+      ObjectWrapper v = iter.GetValue();
+      EXPECT_EQ(v.GetType(), ObjectType::Array);
+      EXPECT_EQ(v.Size(), 3);
+      EXPECT_EQ(v[0].Get<std::string>().value(), "hello");
+    } else if (iter.GetKey() == "key2") {
+      EXPECT_EQ(find_key2, false);
+      find_key2 = true;
+      ObjectWrapper v = iter.GetValue();
+      EXPECT_EQ(v.GetType(), ObjectType::Data);
+      EXPECT_EQ(v.Get<uint32_t>().value(), 15);
+    }
+  }
+  EXPECT_EQ(find_key2 && find_key, true);
+}

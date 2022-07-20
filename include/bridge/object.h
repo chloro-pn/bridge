@@ -271,6 +271,10 @@ class Map : public Object {
 
   void Clear() { objects_.clear(); }
 
+  auto Begin() const { return objects_.begin(); }
+
+  auto End() const { return objects_.end(); }
+
   template <typename Inner>
   requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
@@ -397,6 +401,10 @@ class MapView : public Object {
     outer.append(tmp);
   }
 
+  auto Begin() const { return objects_.begin(); }
+
+  auto End() const { return objects_.end(); }
+
   size_t Size() const { return objects_.size(); }
 
  private:
@@ -466,6 +474,40 @@ inline std::unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
   }
 }
 
+class ObjectWrapper;
+
+class ObjectWrapperIterator {
+ public:
+  using holder_type = std::unordered_map<std::string, std::unique_ptr<Object>>::const_iterator;
+  using holder_type_view = std::unordered_map<std::string_view, std::unique_ptr<Object>>::const_iterator;
+
+  ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
+
+  ObjectWrapperIterator(holder_type_view iter, holder_type_view end) : iter_view_(iter), end_view_(end), view_(true) {}
+
+  bool Valid() const { return view_ == false ? iter_ != end_ : iter_view_ != end_view_; }
+
+  ObjectWrapperIterator& operator++() {
+    if (view_ == false) {
+      ++iter_;
+    } else {
+      ++iter_view_;
+    }
+    return *this;
+  }
+
+  std::string_view GetKey() const { return view_ == false ? iter_->first : iter_view_->first; }
+
+  ObjectWrapper GetValue() const;
+
+ private:
+  holder_type iter_;
+  holder_type end_;
+  holder_type_view iter_view_;
+  holder_type_view end_view_;
+  bool view_;
+};
+
 class ObjectWrapper {
  public:
   ObjectWrapper() : obj_(nullptr) {}
@@ -487,6 +529,19 @@ class ObjectWrapper {
       return ObjectWrapper(static_cast<const Map*>(obj_)->operator[](key));
     } else {
       return ObjectWrapper(static_cast<const MapView*>(obj_)->operator[](key));
+    }
+  }
+
+  std::optional<ObjectWrapperIterator> GetIteraotr() const {
+    if (obj_ == nullptr || obj_->GetType() != ObjectType::Map) {
+      return std::optional<ObjectWrapperIterator>();
+    }
+    if (obj_->IsRefType() == false) {
+      auto tmp = static_cast<const Map*>(obj_);
+      return ObjectWrapperIterator(tmp->Begin(), tmp->End());
+    } else {
+      auto tmp = static_cast<const MapView*>(obj_);
+      return ObjectWrapperIterator(tmp->Begin(), tmp->End());
     }
   }
 
@@ -537,6 +592,13 @@ class ObjectWrapper {
  private:
   const Object* obj_;
 };
+
+inline ObjectWrapper ObjectWrapperIterator::GetValue() const {
+  if (view_ == false) {
+    return ObjectWrapper(iter_->second.get());
+  }
+  return ObjectWrapper(iter_view_->second.get());
+}
 
 inline Map* AsMap(Object* obj) {
   if (obj->GetType() != ObjectType::Map || obj->IsRefType() == true) {
