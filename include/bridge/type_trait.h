@@ -2,6 +2,7 @@
 
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 namespace bridge {
@@ -67,6 +68,51 @@ concept bridge_data_type = bridge_integral<T> || std::is_same_v<std::string, T> 
 
 template <typename T>
 concept bridge_type = bridge_custom_type<T> || bridge_data_type<T>;
+
+/* trait vector and unordered_map<std::string, ...> type */
+template <typename T>
+struct is_bridge_container {
+  constexpr static bool value = false;
+};
+
+template <typename T>
+struct is_bridge_container<std::vector<T>> {
+  constexpr static bool value = true;
+};
+
+template <typename T>
+struct is_bridge_container<std::unordered_map<std::string, T>> {
+  constexpr static bool value = true;
+};
+
+template <typename T>
+concept bridge_container_type = is_bridge_container<T>::value;
+
+template <typename T>
+struct AdaptorTrait;
+
+template <typename T>
+struct AdaptorTrait<std::vector<T>> {
+  using type = T;
+};
+
+template <typename T>
+requires bridge_container_type<T> struct AdaptorTrait<std::vector<T>> {
+  using type = typename AdaptorTrait<T>::type;
+};
+
+template <typename T>
+struct AdaptorTrait<std::unordered_map<std::string, T>> {
+  using type = T;
+};
+
+template <typename T>
+requires bridge_container_type<T> struct AdaptorTrait<std::unordered_map<std::string, T>> {
+  using type = typename AdaptorTrait<T>::type;
+};
+
+template <typename T>
+concept bridge_adaptor_type = bridge_type<typename AdaptorTrait<T>::type>;
 
 template <typename T>
 concept bridge_inner_concept = requires(const T& inner, size_t n) {

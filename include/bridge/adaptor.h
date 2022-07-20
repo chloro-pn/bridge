@@ -9,20 +9,38 @@
 namespace bridge {
 
 template <typename T>
-requires bridge_type<T> inline std::unique_ptr<Object> vector(const std::vector<T>& vec) {
+requires bridge_type<T> inline std::unique_ptr<Object> adaptor(const T& t) {
+  return ValueFactory<Data>(t);
+}
+
+// 必须前置声明，否则vector版本看不到unordered_map版本
+template <typename T>
+    requires bridge_adaptor_type<T> || bridge_type<T> 
+inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec);
+
+template <typename T>
+    requires bridge_adaptor_type<T> || bridge_type<T> 
+inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec);
+
+// 声明结束
+
+template <typename T>
+    requires bridge_adaptor_type<T> || bridge_type<T> 
+inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec) {
   auto ret = ValueFactory<Array>();
   for (const auto& each : vec) {
-    auto v = ValueFactory<Data>(each);
+    auto v = adaptor(each);
     ret->Insert(std::move(v));
   }
   return ret;
 }
 
 template <typename T>
-requires bridge_type<T> inline std::unique_ptr<Object> unorderde_map(const std::unordered_map<std::string, T>& map) {
+    requires bridge_adaptor_type<T> || bridge_type<T> 
+inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec) {
   auto ret = ValueFactory<Map>();
-  for (const auto& each : map) {
-    ret->Insert(each.first, ValueFactory<Data>(each.second));
+  for (const auto& each : vec) {
+    ret->Insert(each.first, adaptor(each.second));
   }
   return ret;
 }
