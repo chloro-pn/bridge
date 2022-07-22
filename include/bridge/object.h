@@ -27,10 +27,12 @@ class Object {
   virtual ~Object() = default;
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false);
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false);
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const;
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const;
 
  private:
   ObjectType type_;
@@ -71,7 +73,8 @@ class Data : public Object {
   }
 
   template <typename T>
-  requires bridge_data_type<T> std::optional<T> Get() const {
+  requires bridge_data_type<T> std::optional<T> Get()
+  const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
@@ -82,7 +85,8 @@ class Data : public Object {
   }
 
   template <typename T>
-  requires bridge_custom_type<T> std::optional<T> Get() const {
+  requires bridge_custom_type<T> std::optional<T> Get()
+  const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
@@ -97,7 +101,8 @@ class Data : public Object {
   uint8_t GetDataType() const { return data_type_; }
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -118,7 +123,8 @@ class Data : public Object {
   }
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = data_.size() + 1;
     seriLength(length, outer);
@@ -140,7 +146,8 @@ class DataView : public Object {
   uint8_t GetDataType() const { return data_type_; }
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -160,7 +167,8 @@ class DataView : public Object {
   }
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = view_.size() + 1;
     seriLength(length, outer);
@@ -194,7 +202,8 @@ class Array : public Object {
   }
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
     parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -216,7 +225,8 @@ class Array : public Object {
   }
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const {
     std::string tmp;
     uint32_t count = objects_.size();
     seriLength(count, tmp);
@@ -276,7 +286,8 @@ class Map : public Object {
   auto End() const { return objects_.end(); }
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
     parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -315,7 +326,8 @@ class Map : public Object {
   }
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const {
     std::string tmp;
     uint32_t count = objects_.size();
     seriLength(count, tmp);
@@ -348,7 +360,8 @@ class MapView : public Object {
   }
 
   template <typename Inner>
-  requires bridge_inner_concept<Inner> void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  requires bridge_inner_concept<Inner>
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
     parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -385,7 +398,8 @@ class MapView : public Object {
   }
 
   template <typename Outer>
-  requires bridge_outer_concept<Outer> void valueSeri(Outer& outer) const {
+  requires bridge_outer_concept<Outer>
+  void valueSeri(Outer& outer) const {
     std::string tmp;
     uint32_t count = objects_.size();
     seriLength(count, tmp);
@@ -412,7 +426,8 @@ class MapView : public Object {
 };
 
 template <typename Inner>
-requires bridge_inner_concept<Inner> void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref) {
+requires bridge_inner_concept<Inner>
+void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref) {
   if (type_ == ObjectType::Map) {
     if (parse_ref == false) {
       static_cast<Map*>(this)->valueParse(inner, offset, parse_ref);
@@ -431,7 +446,8 @@ requires bridge_inner_concept<Inner> void Object::valueParse(const Inner& inner,
 }
 
 template <typename Outer>
-requires bridge_outer_concept<Outer> void Object::valueSeri(Outer& outer) const {
+requires bridge_outer_concept<Outer>
+void Object::valueSeri(Outer& outer) const {
   if (type_ == ObjectType::Map) {
     if (IsRefType() == false) {
       static_cast<const Map*>(this)->valueSeri(outer);

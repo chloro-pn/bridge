@@ -14,6 +14,8 @@ namespace bridge {
 #define BRIDGE_UINT32 0x03
 #define BRIDGE_INT64 0x04
 #define BRIDGE_UINT64 0x05
+#define BRIDGE_FLOAT 0x06
+#define BRIDGE_DOUBLE 0x07
 #define BRIDGE_CUSTOM 0x0C
 #define BRIDGE_INVALID 0x0D
 
@@ -34,6 +36,8 @@ DataTypeTraitStruct(int32_t, INT32);
 DataTypeTraitStruct(uint32_t, UINT32);
 DataTypeTraitStruct(int64_t, INT64);
 DataTypeTraitStruct(uint64_t, UINT64);
+DataTypeTraitStruct(float, FLOAT);
+DataTypeTraitStruct(double, DOUBLE);
 
 template <typename T>
 struct DataTypeTrait {

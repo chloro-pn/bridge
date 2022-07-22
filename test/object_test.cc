@@ -36,6 +36,12 @@ TEST(object, data) {
   auto view = data.GetView();
   EXPECT_EQ(view[0], 'w');
   EXPECT_EQ(view[1], 'o');
+  data = 2.15f;
+  EXPECT_EQ(data.GetDataType(), BRIDGE_FLOAT);
+  EXPECT_EQ(data.Get<float>().value(), 2.15);
+  data = 3.33;
+  EXPECT_EQ(data.GetDataType(), BRIDGE_DOUBLE);
+  EXPECT_EQ(data.Get<double>().value(), 3.33);
 }
 
 TEST(object, array) {

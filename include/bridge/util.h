@@ -27,7 +27,8 @@ class Endian {
 };
 
 template <typename T>
-requires bridge_integral<T> inline T flipByByte(T t) {
+requires bridge_integral<T> || bridge_floating<T>
+inline T flipByByte(T t) {
   T ret{0};
   char* ptr1 = reinterpret_cast<char*>(&ret);
   char* ptr2 = reinterpret_cast<char*>(&t);

@@ -63,3 +63,12 @@ int main() {
   return 0;
 }
 ```
+
+### supported types
+* bridge_data_type:
+  * uint32_t、int32_t、uint64_t、int64_t
+  * std::string、std::vector\<char\>、float、double、char(&)[n]、const char(&)[n]
+* bridge_custom_type:
+  * any type that implements concept bridge_custom_type (look bridge/type_trait.h for details)
+* bridge_adaptor_type:
+  * std::vector\<T\>、std::unordered_map<std::string, T> (where T is the type listed in "supported types")

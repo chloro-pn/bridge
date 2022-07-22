@@ -9,23 +9,22 @@
 namespace bridge {
 
 template <typename T>
-requires bridge_type<T> inline std::unique_ptr<Object> adaptor(const T& t) {
-  return ValueFactory<Data>(t);
-}
+requires bridge_type<T>
+inline std::unique_ptr<Object> adaptor(const T& t) { return ValueFactory<Data>(t); }
 
 // 必须前置声明，否则vector版本看不到unordered_map版本
 template <typename T>
-    requires bridge_adaptor_type<T> || bridge_type<T> 
+requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec);
 
 template <typename T>
-    requires bridge_adaptor_type<T> || bridge_type<T> 
+requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec);
 
 // 声明结束
 
 template <typename T>
-    requires bridge_adaptor_type<T> || bridge_type<T> 
+requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec) {
   auto ret = ValueFactory<Array>();
   for (const auto& each : vec) {
@@ -36,7 +35,7 @@ inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec) {
 }
 
 template <typename T>
-    requires bridge_adaptor_type<T> || bridge_type<T> 
+requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec) {
   auto ret = ValueFactory<Map>();
   for (const auto& each : vec) {

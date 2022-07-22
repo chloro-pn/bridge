@@ -50,8 +50,14 @@ inline unsigned long long varint_decode(const char* buf, int len, unsigned char*
 }
 
 inline int varint_encoding_length(unsigned long long n) {
-  return (n < N1
-              ? 1
-              : n < N2 ? 2
-                       : n < N3 ? 3 : n < N4 ? 4 : n < N5 ? 5 : n < N6 ? 6 : n < N7 ? 7 : n < N8 ? 8 : n < N9 ? 9 : 10);
+  return (n < N1   ? 1
+          : n < N2 ? 2
+          : n < N3 ? 3
+          : n < N4 ? 4
+          : n < N5 ? 5
+          : n < N6 ? 6
+          : n < N7 ? 7
+          : n < N8 ? 8
+          : n < N9 ? 9
+                   : 10);
 }

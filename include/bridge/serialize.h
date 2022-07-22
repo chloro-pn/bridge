@@ -34,7 +34,8 @@ inline void serialize(const std::vector<char>& obj, std::vector<char>& container
 }
 
 template <typename T>
-requires bridge_integral<T> inline void serialize(const T& obj, std::vector<char>& container) {
+requires bridge_integral<T> || bridge_floating<T>
+inline void serialize(const T& obj, std::vector<char>& container) {
   T tmp = obj;
   container.resize(sizeof(obj));
   if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
@@ -44,12 +45,12 @@ requires bridge_integral<T> inline void serialize(const T& obj, std::vector<char
 }
 
 template <typename Outer>
-requires bridge_outer_concept<Outer> void seriDataType(uint8_t dt, Outer& outer) {
-  outer.push_back(static_cast<char>(dt));
-}
+requires bridge_outer_concept<Outer>
+void seriDataType(uint8_t dt, Outer& outer) { outer.push_back(static_cast<char>(dt)); }
 
 template <typename Outer>
-requires bridge_outer_concept<Outer> void seriLength(uint32_t length, Outer& outer) {
+requires bridge_outer_concept<Outer>
+void seriLength(uint32_t length, Outer& outer) {
   char buf[128];
   unsigned char bytes = 0;
   varint_encode(length, buf, sizeof(buf), &bytes);
@@ -57,7 +58,8 @@ requires bridge_outer_concept<Outer> void seriLength(uint32_t length, Outer& out
 }
 
 template <typename Outer>
-requires bridge_outer_concept<Outer> void seriObjectType(ObjectType type, Outer& outer) {
+requires bridge_outer_concept<Outer>
+void seriObjectType(ObjectType type, Outer& outer) {
   assert(type != ObjectType::Invalid);
   char tmp = ObjectTypeToChar(type);
   outer.push_back(tmp);

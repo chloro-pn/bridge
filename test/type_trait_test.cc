@@ -16,7 +16,8 @@ struct bridge_integral_test {
 };
 
 template <typename T>
-requires bridge_integral<T> struct bridge_integral_test<T> {
+requires bridge_integral<T>
+struct bridge_integral_test<T> {
   static constexpr bool value = true;
 };
 
@@ -27,7 +28,8 @@ struct bridge_adaptor_test {
 };
 
 template <typename T>
-requires bridge_adaptor_type<T> struct bridge_adaptor_test<T> {
+requires bridge_adaptor_type<T>
+struct bridge_adaptor_test<T> {
   static constexpr bool value = true;
   using type = typename AdaptorTrait<T>::type;
 };

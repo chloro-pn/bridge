@@ -39,7 +39,8 @@ inline std::vector<char> parse(const char* ptr, size_t n) {
 }
 
 template <typename T>
-requires bridge_integral<T> inline T parse(const char* ptr, size_t n) {
+requires bridge_integral<T> || bridge_floating<T>
+inline T parse(const char* ptr, size_t n) {
   T ret{0};
   if (ptr != nullptr) {
     assert(n == sizeof(T));
