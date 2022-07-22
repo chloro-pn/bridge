@@ -14,6 +14,14 @@ cc_binary(
   ]
 )
 
+cc_binary(
+  name = "adaptor",
+  srcs = ["example/adaptor.cc"],
+  deps = [
+    ":bridge",
+  ]
+)
+
 cc_test(
   name = "bridge_test",
   srcs = glob(["test/*.cc"]),
