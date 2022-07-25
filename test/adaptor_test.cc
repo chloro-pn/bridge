@@ -30,7 +30,7 @@ TEST(object, adaptor) {
   EXPECT_EQ(v1->GetDataType(), BRIDGE_INT32);
   EXPECT_EQ(v1->Get<int32_t>().value(), 2);
 
-  std::unordered_map<std::string, std::vector<std::unordered_map<std::string, uint32_t>>> cc;
+  std::unordered_map<std::string_view, std::vector<std::unordered_map<std::string, uint32_t>>> cc;
   std::unordered_map<std::string, uint32_t> tmp;
   tmp.insert({"key2", 24});
   cc["key1"].push_back(tmp);

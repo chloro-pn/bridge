@@ -71,4 +71,4 @@ int main() {
 * bridge_custom_type:
   * any type that implements concept bridge_custom_type (look bridge/type_trait.h for details)
 * bridge_adaptor_type:
-  * std::vector\<T\>、std::unordered_map<std::string, T> (where T is the type listed in "supported types")
+  * std::vector\<T\>、std::unordered_map<std::string, T>、std::unordered_map<std::string_view, T> (where T is the type listed in "supported types")

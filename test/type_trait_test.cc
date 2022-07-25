@@ -53,7 +53,7 @@ TEST(type_trait, all) {
   using type1 = std::vector<uint32_t>;
   using type2 = std::unordered_map<std::string, type1>;
   using type3 = std::vector<type2>;
-  using type4 = std::unordered_map<std::string, type3>;
+  using type4 = std::unordered_map<std::string_view, type3>;
   using type5 = std::unordered_map<std::string, type4>;
 
   EXPECT_EQ(bridge_adaptor_test<type5>::value, true);

@@ -2,6 +2,8 @@
 
 #include <unordered_map>
 #include <vector>
+#include <string>
+#include <string_view>
 
 #include "bridge/object.h"
 #include "bridge/type_trait.h"
@@ -20,6 +22,11 @@ inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec);
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec);
+
+template <typename T>
+requires bridge_adaptor_type<T> || bridge_type<T>
+inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec);
+
 
 // 声明结束
 
@@ -40,6 +47,16 @@ inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>&
   auto ret = ValueFactory<Map>();
   for (const auto& each : vec) {
     ret->Insert(each.first, adaptor(each.second));
+  }
+  return ret;
+}
+
+template <typename T>
+requires bridge_adaptor_type<T> || bridge_type<T>
+inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec) {
+  auto ret = ValueFactory<Map>();
+  for (const auto& each : vec) {
+    ret->Insert(std::string(each.first), adaptor(each.second));
   }
   return ret;
 }
