@@ -205,10 +205,6 @@ class Array : public Object {
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
-    parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     uint64_t count = parseLength(inner, offset);
     for (uint64_t i = 0; i < count; ++i) {
       ObjectType type = parseObjectType(inner, offset);
@@ -227,15 +223,12 @@ class Array : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer) const {
-    std::string tmp;
     uint32_t count = objects_.size();
-    seriLength(count, tmp);
+    seriLength(count, outer);
     for (auto& each : objects_) {
-      seriObjectType(each->GetType(), tmp);
-      each->valueSeri(tmp);
+      seriObjectType(each->GetType(), outer);
+      each->valueSeri(outer);
     }
-    seriLength(tmp.size(), outer);
-    outer.append(tmp);
   }
 
  private:
@@ -289,10 +282,6 @@ class Map : public Object {
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
-    parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     uint64_t count = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -328,19 +317,16 @@ class Map : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer) const {
-    std::string tmp;
     uint32_t count = objects_.size();
-    seriLength(count, tmp);
+    seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
       uint32_t key_length = each.first.size();
-      seriLength(key_length, tmp);
-      tmp.append(each.first);
-      seriObjectType(each.second->GetType(), tmp);
-      each.second->valueSeri(tmp);
+      seriLength(key_length, outer);
+      outer.append(each.first);
+      seriObjectType(each.second->GetType(), outer);
+      each.second->valueSeri(outer);
     }
-    seriLength(tmp.size(), outer);
-    outer.append(tmp);
   }
 
  private:
@@ -363,10 +349,6 @@ class MapView : public Object {
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
     objects_.clear();
-    parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     uint64_t count = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -400,19 +382,16 @@ class MapView : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer) const {
-    std::string tmp;
     uint32_t count = objects_.size();
-    seriLength(count, tmp);
+    seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
       uint32_t key_length = each.first.size();
-      seriLength(key_length, tmp);
-      tmp.append(&each.first[0], each.first.size());
-      seriObjectType(each.second->GetType(), tmp);
-      each.second->valueSeri(tmp);
+      seriLength(key_length, outer);
+      outer.append(&each.first[0], each.first.size());
+      seriObjectType(each.second->GetType(), outer);
+      each.second->valueSeri(outer);
     }
-    seriLength(tmp.size(), outer);
-    outer.append(tmp);
   }
 
   auto Begin() const { return objects_.begin(); }

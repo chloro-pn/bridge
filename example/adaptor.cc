@@ -1,10 +1,11 @@
 #include "bridge/adaptor.h"
-#include "bridge/object.h"
 
-#include <vector>
+#include <iostream>
 #include <string>
 #include <unordered_map>
-#include <iostream>
+#include <vector>
+
+#include "bridge/object.h"
 
 using namespace bridge;
 
@@ -16,10 +17,10 @@ int main() {
   auto v = adaptor(id_map);
   ObjectWrapper w(v.get());
   auto it = w.GetIteraotr().value();
-  for(; it.Valid(); ++it) {
+  for (; it.Valid(); ++it) {
     std::cout << it.GetKey() << " ";
     auto arr = it.GetValue();
-    for(int j = 0; j < arr.Size(); ++j) {
+    for (int j = 0; j < arr.Size(); ++j) {
       std::cout << arr[j].Get<uint32_t>().value() << " ";
     }
     std::cout << std::endl;

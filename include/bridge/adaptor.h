@@ -1,9 +1,9 @@
 #pragma once
 
-#include <unordered_map>
-#include <vector>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
 #include "bridge/object.h"
 #include "bridge/type_trait.h"
@@ -26,7 +26,6 @@ inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>&
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
 inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec);
-
 
 // 声明结束
 

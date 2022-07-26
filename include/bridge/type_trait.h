@@ -1,10 +1,10 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
-#include <string_view>
 
 namespace bridge {
 

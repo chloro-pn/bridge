@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
-#include <set>
+#include <vector>
 
 #include "bridge/data_type.h"
 #include "bridge/object.h"
@@ -16,14 +16,13 @@ class Pattern {
   virtual bool Match(const Object* obj) = 0;
 
   ~Pattern() {}
+
  private:
 };
 
 class MapPattern : public Pattern {
  public:
-  MapPattern() : set_size_pattern_(false), size_pattern_(0) {
-
-  }
+  MapPattern() : set_size_pattern_(false), size_pattern_(0) {}
 
   bool Match(const Object* obj) override {
     if (obj->GetType() != ObjectType::Map) {
@@ -36,7 +35,7 @@ class MapPattern : public Pattern {
           return false;
         }
       }
-      for(const auto& each : match_kv_) {
+      for (const auto& each : match_kv_) {
         const Object* value = map->operator[](each.first);
         if (value == nullptr) {
           return false;
@@ -53,7 +52,7 @@ class MapPattern : public Pattern {
           return false;
         }
       }
-      for(const auto& each : match_kv_) {
+      for (const auto& each : match_kv_) {
         const Object* value = map_view->operator[](each.first);
         if (value == nullptr) {
           return false;
@@ -67,13 +66,9 @@ class MapPattern : public Pattern {
     return true;
   }
 
-  void setPattern(const std::string& key, std::unique_ptr<Pattern>&& pattern) {
-    match_kv_[key] = std::move(pattern);
-  }
+  void setPattern(const std::string& key, std::unique_ptr<Pattern>&& pattern) { match_kv_[key] = std::move(pattern); }
 
-  void removePattern(const std::string& key) {
-    match_kv_.erase(key);
-  }
+  void removePattern(const std::string& key) { match_kv_.erase(key); }
 
   void setSize(size_t n) {
     size_pattern_ = n;
@@ -101,7 +96,7 @@ class ArrayPattern : public Pattern {
         return false;
       }
     }
-    for(size_t i = 0; i < objects_.size(); ++i) {
+    for (size_t i = 0; i < objects_.size(); ++i) {
       const Object* value = arr->operator[](i);
       if (value == nullptr) {
         return false;
@@ -114,9 +109,7 @@ class ArrayPattern : public Pattern {
     return true;
   }
 
-  ArrayPattern(size_t n) : set_length_pattern_(true) {
-    objects_.resize(n);
-  }
+  ArrayPattern(size_t n) : set_length_pattern_(true) { objects_.resize(n); }
 
   void setNthPattern(size_t n, std::unique_ptr<Pattern>&& pattern) {
     if (set_length_pattern_ && n < objects_.size()) {
@@ -161,4 +154,4 @@ class DataPattern : public Pattern {
   bool set_data_type_pattern_;
 };
 
-}
+}  // namespace bridge

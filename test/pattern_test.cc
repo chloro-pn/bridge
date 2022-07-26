@@ -1,23 +1,24 @@
+#include "bridge/pattern.h"
+
 #include <cstdint>
 #include <memory>
 
-#include "bridge/pattern.h"
 #include "bridge/object.h"
 #include "gtest/gtest.h"
 
 using namespace bridge;
 
 /*
-  * pattern : 
-  * {
-  *   "key" : [
-  *     [!type : string]
-  *     [!type : string]
-  *     [!type : uint32]
-  *   ]
-  * }
-  *
-  */
+ * pattern :
+ * {
+ *   "key" : [
+ *     [!type : string]
+ *     [!type : string]
+ *     [!type : uint32]
+ *   ]
+ * }
+ *
+ */
 std::unique_ptr<MapPattern> CreatePattern() {
   auto pp1 = std::make_unique<DataPattern>(BRIDGE_STRING);
   auto pp2 = std::make_unique<DataPattern>(BRIDGE_STRING);
