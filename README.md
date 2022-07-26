@@ -6,6 +6,7 @@ A high-performance and concise serialization and deserialization Library
 
 * header-only
 * sufficient unit-test
+* support pattern matching in code form (use the Pattern object to verify whether the Object meets some constraints)
 * support serialization of arbitrary binary data
 * convenient access interface ( objectwrapper )
 * compile time detection (based on c++20:concept)
