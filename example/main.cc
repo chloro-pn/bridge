@@ -9,7 +9,8 @@ using namespace bridge;
 
 int main() {
   // Construct the object that need to be serialized
-  std::unique_ptr<Data> v1 = ValueFactory<Data>("hello world");
+  std::string str("hello world");
+  std::unique_ptr<DataView> v1 = ValueFactory<DataView>(std::string_view(str), BRIDGE_STRING);
   std::unique_ptr<Data> v2 = ValueFactory<Data>((int32_t)32);
   std::unique_ptr<Array> arr = ValueFactory<Array>();
   arr->Insert(std::move(v1));

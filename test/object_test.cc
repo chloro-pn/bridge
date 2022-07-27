@@ -44,6 +44,14 @@ TEST(object, data) {
   EXPECT_DOUBLE_EQ(data.Get<double>().value(), 3.33);
 }
 
+TEST(object, data_view) {
+  std::string str("hello world");
+  DataView view(std::string_view(str), BRIDGE_STRING);
+  EXPECT_EQ(view.GetDataType(), BRIDGE_STRING);
+  EXPECT_EQ(view.GetView(), str);
+  EXPECT_EQ(&view.GetView()[0], &str[0]);
+}
+
 TEST(object, array) {
   Array arr;
   EXPECT_EQ(arr.GetType(), ObjectType::Array);

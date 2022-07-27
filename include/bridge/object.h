@@ -141,6 +141,9 @@ class DataView : public Object {
  public:
   DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID), view_() {}
 
+  explicit DataView(std::string_view data_view, uint8_t data_type)
+      : Object(ObjectType::Data, true), data_type_(data_type), view_(data_view) {}
+
   std::string_view GetView() const { return view_; }
 
   uint8_t GetDataType() const { return data_type_; }
