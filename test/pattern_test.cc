@@ -20,11 +20,13 @@ using namespace bridge;
  *
  */
 std::unique_ptr<MapPattern> CreatePattern() {
-  auto pp1 = std::make_unique<DataPattern>(BRIDGE_STRING);
+  auto orp = std::make_unique<OrPattern>();
+  orp->PushPattern(std::make_unique<DataPattern>(BRIDGE_STRING));
+  orp->PushPattern(std::make_unique<DataPattern>(BRIDGE_UINT32));
   auto pp2 = std::make_unique<DataPattern>(BRIDGE_STRING);
   auto pp3 = std::make_unique<DataPattern>(BRIDGE_UINT32);
   auto pp4 = std::make_unique<ArrayPattern>(3);
-  pp4->setNthPattern(0, std::move(pp1));
+  pp4->setNthPattern(0, std::move(orp));
   pp4->setNthPattern(1, std::move(pp2));
   pp4->setNthPattern(2, std::move(pp3));
   auto pp5 = std::make_unique<MapPattern>();

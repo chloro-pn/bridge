@@ -154,4 +154,38 @@ class DataPattern : public Pattern {
   bool set_data_type_pattern_;
 };
 
+class OrPattern : public Pattern {
+ public:
+  void PushPattern(std::unique_ptr<Pattern>&& pattern) { patterns_.push_back(std::move(pattern)); }
+
+  bool Match(const Object* obj) override {
+    for (auto& each : patterns_) {
+      if (each->Match(obj) == true) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+ private:
+  std::vector<std::unique_ptr<Pattern>> patterns_;
+};
+
+class AndPattern : public Pattern {
+ public:
+  void PushPattern(std::unique_ptr<Pattern>&& pattern) { patterns_.push_back(std::move(pattern)); }
+
+  bool Match(const Object* obj) override {
+    for (auto& each : patterns_) {
+      if (each->Match(obj) == false) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+ private:
+  std::vector<std::unique_ptr<Pattern>> patterns_;
+};
+
 }  // namespace bridge
