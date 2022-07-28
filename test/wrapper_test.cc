@@ -31,7 +31,7 @@ TEST(object, wrapper) {
   std::string content = Serialize(std::move(map));
 
   auto new_root = Parse(content, true);
-  ObjectWrapper new_wrapper(new_root.get());
+  ObjectWrapper new_wrapper(new_root.root_.get());
   EXPECT_EQ(new_wrapper.Empty(), false);
   EXPECT_EQ(new_wrapper.GetType().value(), ObjectType::Map);
   EXPECT_EQ(new_wrapper["key"][0].GetView(), "hello");

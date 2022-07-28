@@ -29,16 +29,16 @@ int main() {
   // deserialize (ref-parse mode)
   auto new_root = Parse(tmp, true);
   // access new_root through ObjectWrapper proxy
-  ObjectWrapper wrapper(new_root.get());
+  ObjectWrapper wrapper(new_root.root_.get());
   std::cout << wrapper["key"][0].GetView().value() << std::endl;
 
-  tmp = Serialize(std::move(new_root));
+  tmp = Serialize(std::move(new_root.root_));
   new_root = Parse(tmp);
-  ObjectWrapper new_wrapper(new_root.get());
+  ObjectWrapper new_wrapper(new_root.root_.get());
   // if the access path does not meet the requirements, the final result's Empty() method return true.
   assert(new_wrapper["not_exist_key"][0].Empty() == true);
   assert(new_wrapper["key"][3].Empty() == true);
-  AsMap(new_root)->Insert("new_key", ValueFactory<Data>("new_root"));
+  AsMap(new_root.root_)->Insert("new_key", ValueFactory<Data>("new_root"));
   std::cout << new_wrapper["new_key"].Get<std::string>().value() << std::endl;
   return 0;
 }

@@ -65,7 +65,7 @@ TEST(object, pattern) {
   std::string content = Serialize(std::move(map));
 
   auto new_root = Parse(content, true);
-  ObjectWrapper new_wrapper(new_root.get());
+  ObjectWrapper new_wrapper(new_root.root_.get());
   EXPECT_EQ(new_wrapper.Empty(), false);
   EXPECT_EQ(new_wrapper.GetType().value(), ObjectType::Map);
   EXPECT_EQ(new_wrapper["key"][0].GetView(), "hello");
@@ -76,5 +76,5 @@ TEST(object, pattern) {
   std::intptr_t p2 = p1 + content.size();
   std::intptr_t p3 = reinterpret_cast<std::intptr_t>(&v[0]);
   EXPECT_TRUE(p3 >= p1 && p2 >= p3);
-  EXPECT_EQ(pattern_root->Match(new_root.get()), true);
+  EXPECT_EQ(pattern_root->Match(new_root.root_.get()), true);
 }

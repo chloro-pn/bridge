@@ -142,9 +142,11 @@ concept bridge_inner_concept = requires(const T& inner, size_t n) {
 };
 
 template <typename T>
-concept bridge_outer_concept = requires(T& outer, char c, std::string s, const char* ptr, size_t len) {
+concept bridge_outer_concept = requires(T& outer, char c, std::string s, const char* ptr, size_t len,
+                                        std::string_view view) {
   {outer.push_back(c)};
   {outer.append(s)};
+  {outer.append(view)};
   {outer.append(ptr, len)};
 };
 

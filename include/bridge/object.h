@@ -13,6 +13,7 @@
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
 #include "bridge/type_trait.h"
+#include "bridge/string_map.h"
 
 namespace bridge {
 
@@ -32,7 +33,7 @@ class Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const;
+  void valueSeri(Outer& outer, StringMap& string_map) const;
 
  private:
   ObjectType type_;
@@ -124,7 +125,7 @@ class Data : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, StringMap& string_map) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = data_.size() + 1;
     seriLength(length, outer);
@@ -171,7 +172,7 @@ class DataView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, StringMap& string_map) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = view_.size() + 1;
     seriLength(length, outer);
@@ -225,12 +226,12 @@ class Array : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, StringMap& string_map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       seriObjectType(each->GetType(), outer);
-      each->valueSeri(outer);
+      each->valueSeri(outer, string_map);
     }
   }
 
@@ -319,16 +320,21 @@ class Map : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, StringMap& string_map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
-      uint32_t key_length = each.first.size();
-      seriLength(key_length, outer);
-      outer.append(each.first);
+      if (string_map.IfInUse() == false) {
+        uint32_t key_length = each.first.size();
+        seriLength(key_length, outer);
+        outer.append(each.first);
+      } else {
+        uint32_t id = string_map.RegisterOrGetIdFromString(each.first);
+        outer.append((const char*)&id, sizeof(id));
+      }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer);
+      each.second->valueSeri(outer, string_map);
     }
   }
 
@@ -384,16 +390,21 @@ class MapView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, StringMap& string_map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
-      uint32_t key_length = each.first.size();
-      seriLength(key_length, outer);
-      outer.append(&each.first[0], each.first.size());
+      if (string_map.IfInUse() == false) {
+        uint32_t key_length = each.first.size();
+        seriLength(key_length, outer);
+        outer.append(&each.first[0], each.first.size());
+      } else {
+        uint32_t id = string_map.RegisterOrGetIdFromString(each.first);
+        outer.append((const char*)&id, sizeof(id));
+      }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer);
+      each.second->valueSeri(outer, string_map);
     }
   }
 
@@ -429,20 +440,20 @@ void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref) {
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
-void Object::valueSeri(Outer& outer) const {
+void Object::valueSeri(Outer& outer, StringMap& string_map) const {
   if (type_ == ObjectType::Map) {
     if (IsRefType() == false) {
-      static_cast<const Map*>(this)->valueSeri(outer);
+      static_cast<const Map*>(this)->valueSeri(outer, string_map);
     } else {
-      static_cast<const MapView*>(this)->valueSeri(outer);
+      static_cast<const MapView*>(this)->valueSeri(outer, string_map);
     }
   } else if (type_ == ObjectType::Array) {
-    static_cast<const Array*>(this)->valueSeri(outer);
+    static_cast<const Array*>(this)->valueSeri(outer, string_map);
   } else if (type_ == ObjectType::Data) {
     if (IsRefType() == false) {
-      static_cast<const Data*>(this)->valueSeri(outer);
+      static_cast<const Data*>(this)->valueSeri(outer, string_map);
     } else {
-      static_cast<const DataView*>(this)->valueSeri(outer);
+      static_cast<const DataView*>(this)->valueSeri(outer, string_map);
     }
   }
 }
@@ -631,23 +642,42 @@ inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>
 
 inline Data* AsData(std::unique_ptr<Object>& obj) { return AsData(obj.get()); }
 
-inline std::string Serialize(std::unique_ptr<Object>&& obj) {
+inline std::string Serialize(std::unique_ptr<Object>&& obj, bool open_string_map = false) {
   Map root;
   root.Insert("root", std::move(obj));
   std::string ret;
-  root.valueSeri(ret);
+  StringMap string_map;
+  if (open_string_map == true) {
+    string_map.Use();
+  }
+  root.valueSeri(ret, string_map);
+  if (open_string_map == true) {
+    root.Insert("string_map", ValueFactory<Data>(string_map.SerializeToBridge()));
+  }
   return ret;
 }
 
-inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref = false) {
+struct Root {
+  std::unique_ptr<Object> root_;
+  StringMap map_;
+};
+
+// 重构, 返回root对象，root对象持有用户root以及一些元信息
+inline Root Parse(const std::string& content, bool parse_ref = false) {
+  Root ret;
   auto root = ValueFactory<Map>();
   size_t offset = 0;
   InnerWrapper wrapper(content);
   root->valueParse(wrapper, offset, parse_ref);
   if (wrapper.outOfRange() || offset != content.size()) {
-    return nullptr;
+    return ret;
   }
-  return root->Get("root");
+  ret.root_ = root->Get("root");
+  auto string_map = root->Get("string_map");
+  if (string_map != nullptr) {
+    ret.map_ = StringMap::ConstructFromBridge(AsData(string_map)->Get<std::vector<char>>().value());
+  }
+  return ret;
 }
 
 }  // namespace bridge
