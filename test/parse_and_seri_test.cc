@@ -15,11 +15,13 @@ TEST(parse_and_seri, string_map) {
   maps["v1"] = ints;
   maps["v2"] = int2;
   auto v = adaptor(maps);
+  AsMap(v)->Insert("tags", ValueFactory<Data>("hello world"));
   auto content = Serialize<SeriType::REPLACE>(std::move(v));
 
   auto root = Parse(content);
   ObjectWrapper wrapper(root.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
-  EXPECT_EQ(wrapper.Size(), 2);
+  EXPECT_EQ(wrapper.Size(), 3);
   EXPECT_EQ(wrapper["v1"][0].Get<int32_t>().value(), 1);
+  EXPECT_EQ(wrapper["tags"].Get<std::string>().value(), "hello world");
 }

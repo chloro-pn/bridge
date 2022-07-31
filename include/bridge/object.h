@@ -106,16 +106,25 @@ class Data : public Object {
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-    uint64_t size = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     data_type_ = parseDataType(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
-    assert(size > 1);
-    size = size - 1;
+    assert(data_type_ != BRIDGE_INVALID);
+    if (data_type_ == BRIDGE_STRING && map != nullptr) {
+      uint32_t id = parseLength(inner, offset);
+      if (inner.outOfRange()) {
+        return;
+      }
+      std::string_view str = map->GetStr(id);
+      data_.resize(str.size());
+      memcpy(&data_[0], &str[0], str.size());
+      return;
+    }
+    uint64_t size = parseLength(inner, offset);
+    if (inner.outOfRange()) {
+      return;
+    }
     data_.resize(size);
     memcpy(&data_[0], inner.curAddr(), size);
     inner.skip(size);
@@ -129,13 +138,22 @@ class Data : public Object {
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, const StringMap* map) const {
     assert(data_type_ != BRIDGE_INVALID);
-    uint32_t length = data_.size() + 1;
-    seriLength(length, outer);
     seriDataType(data_type_, outer);
+    if (data_type_ == BRIDGE_STRING && map != nullptr) {
+      uint32_t id = map->GetId(std::string_view(&data_[0], data_.size()));
+      seriLength(id, outer);
+      return;
+    }
+    uint32_t length = data_.size();
+    seriLength(length, outer);
     outer.append(&data_[0], data_.size());
   }
 
-  void registerId(StringMap& map) const {}
+  void registerId(StringMap& map) const {
+    if (data_type_ == BRIDGE_STRING) {
+      map.RegisterIdFromString(std::string_view(&data_[0], data_.size()));
+    }
+  }
 
  private:
   std::vector<char> data_;
@@ -156,16 +174,23 @@ class DataView : public Object {
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-    uint64_t size = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     data_type_ = parseDataType(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
-    assert(size > 1);
-    size = size - 1;
+    assert(data_type_ != BRIDGE_INVALID);
+    if (data_type_ == BRIDGE_STRING && map != nullptr) {
+      uint32_t id = parseLength(inner, offset);
+      if (inner.outOfRange()) {
+        return;
+      }
+      view_ = map->GetStr(id);
+      return;
+    }
+    uint64_t size = parseLength(inner, offset);
+    if (inner.outOfRange()) {
+      return;
+    }
     view_ = std::string_view(inner.curAddr(), size);
     inner.skip(size);
     if (inner.outOfRange()) {
@@ -178,13 +203,22 @@ class DataView : public Object {
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, const StringMap* map) const {
     assert(data_type_ != BRIDGE_INVALID);
-    uint32_t length = view_.size() + 1;
-    seriLength(length, outer);
     seriDataType(data_type_, outer);
+    if (data_type_ == BRIDGE_STRING && map != nullptr) {
+      uint32_t id = map->GetId(view_);
+      seriLength(id, outer);
+      return;
+    }
+    uint32_t length = view_.size();
+    seriLength(length, outer);
     outer.append(&view_[0], view_.size());
   }
 
-  void registerId(StringMap& map) const {}
+  void registerId(StringMap& map) const {
+    if (data_type_ == BRIDGE_STRING) {
+      map.RegisterIdFromString(view_);
+    }
+  }
 
  private:
   std::string_view view_;
@@ -701,7 +735,6 @@ inline Data* AsData(Object* obj) {
 inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>(obj)); }
 
 inline Data* AsData(std::unique_ptr<Object>& obj) { return AsData(obj.get()); }
-
 
 enum class SeriType : char {
   NORMAL,

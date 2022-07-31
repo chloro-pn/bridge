@@ -138,7 +138,7 @@ template <typename T>
 concept bridge_inner_concept = requires(const T& inner, size_t n) {
   { inner.curAddr() } -> std::same_as<const char*>;
   {inner.skip(n)};
-  {inner.remain()} -> std::same_as<size_t>;
+  { inner.remain() } -> std::same_as<size_t>;
   { inner.outOfRange() } -> std::same_as<bool>;
 };
 

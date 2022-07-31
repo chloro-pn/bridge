@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -9,8 +10,6 @@
 #include "bridge/inner.h"
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
-
-#include <iostream>
 
 namespace bridge {
 
