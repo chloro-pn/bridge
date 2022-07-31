@@ -3,12 +3,13 @@
 #include <cassert>
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 namespace bridge {
 
 class InnerWrapper {
  public:
-  InnerWrapper(const std::string& str) : str_(str), current_index_(0) {}
+  InnerWrapper(std::string_view str) : str_(str), current_index_(0) {}
 
   const char* curAddr() const {
     assert(current_index_ < str_.size());
@@ -20,7 +21,7 @@ class InnerWrapper {
   bool outOfRange() const { return current_index_ > str_.size(); }
 
  private:
-  const std::string& str_;
+  std::string_view str_;
   mutable size_t current_index_;
 };
 

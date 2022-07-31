@@ -15,6 +15,14 @@ cc_binary(
 )
 
 cc_binary(
+  name = "string_map",
+  srcs = ["example/string_map.cc"],
+  deps = [
+    ":bridge",
+  ]
+)
+
+cc_binary(
   name = "adaptor",
   srcs = ["example/adaptor.cc"],
   deps = [

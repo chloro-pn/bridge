@@ -12,6 +12,7 @@
 #include "bridge/object_type.h"
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
+#include "bridge/string_map.h"
 #include "bridge/type_trait.h"
 
 namespace bridge {
@@ -28,11 +29,13 @@ class Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false);
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map);
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const;
+  void valueSeri(Outer& outer, const StringMap* map) const;
+
+  void registerId(StringMap& map) const;
 
  private:
   ObjectType type_;
@@ -102,7 +105,7 @@ class Data : public Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -124,13 +127,15 @@ class Data : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, const StringMap* map) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = data_.size() + 1;
     seriLength(length, outer);
     seriDataType(data_type_, outer);
     outer.append(&data_[0], data_.size());
   }
+
+  void registerId(StringMap& map) const {}
 
  private:
   std::vector<char> data_;
@@ -150,7 +155,7 @@ class DataView : public Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
@@ -171,13 +176,15 @@ class DataView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, const StringMap* map) const {
     assert(data_type_ != BRIDGE_INVALID);
     uint32_t length = view_.size() + 1;
     seriLength(length, outer);
     seriDataType(data_type_, outer);
     outer.append(&view_[0], view_.size());
   }
+
+  void registerId(StringMap& map) const {}
 
  private:
   std::string_view view_;
@@ -206,7 +213,7 @@ class Array : public Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
     for (uint64_t i = 0; i < count; ++i) {
@@ -215,7 +222,7 @@ class Array : public Object {
         return;
       }
       auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref);
+      v->valueParse(inner, offset, parse_ref, map);
       if (inner.outOfRange()) {
         return;
       }
@@ -225,12 +232,18 @@ class Array : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, const StringMap* map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       seriObjectType(each->GetType(), outer);
-      each->valueSeri(outer);
+      each->valueSeri(outer, map);
+    }
+  }
+
+  void registerId(StringMap& map) const {
+    for (auto& each : objects_) {
+      each->registerId(map);
     }
   }
 
@@ -283,7 +296,7 @@ class Map : public Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -291,44 +304,63 @@ class Map : public Object {
     }
     for (uint64_t i = 0; i < count; ++i) {
       // parse key
-      uint64_t key_length = parseLength(inner, offset);
-      if (inner.outOfRange()) {
-        return;
+      std::string_view key_view;
+      if (map == nullptr) {
+        uint64_t key_length = parseLength(inner, offset);
+        if (inner.outOfRange()) {
+          return;
+        }
+        key_view = std::string_view(inner.curAddr(), key_length);
+        inner.skip(key_length);
+        if (inner.outOfRange()) {
+          return;
+        }
+        offset += key_length;
+      } else {
+        uint32_t id = parseLength(inner, offset);
+        if (inner.outOfRange()) {
+          return;
+        }
+        key_view = map->GetStr(id);
       }
-      std::string key;
-      key.resize(key_length);
-      memcpy(&key[0], inner.curAddr(), key_length);
-      inner.skip(key_length);
-      if (inner.outOfRange()) {
-        return;
-      }
-      offset += key_length;
       // parse value
       ObjectType type = parseObjectType(inner, offset);
       if (inner.outOfRange()) {
         return;
       }
       auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref);
+      v->valueParse(inner, offset, parse_ref, map);
       if (inner.outOfRange()) {
         return;
       }
-      objects_[key] = std::move(v);
+      objects_.insert({std::string(key_view), std::move(v)});
     }
   }
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, const StringMap* map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
-      uint32_t key_length = each.first.size();
-      seriLength(key_length, outer);
-      outer.append(each.first);
+      if (map == nullptr) {
+        uint32_t key_length = each.first.size();
+        seriLength(key_length, outer);
+        outer.append(each.first);
+      } else {
+        uint32_t id = map->GetId(each.first);
+        seriLength(id, outer);
+      }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer);
+      each.second->valueSeri(outer, map);
+    }
+  }
+
+  void registerId(StringMap& map) const {
+    for (auto& each : objects_) {
+      map.RegisterIdFromString(each.first);
+      each.second->registerId(map);
     }
   }
 
@@ -350,7 +382,7 @@ class MapView : public Object {
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
-  void valueParse(const Inner& inner, size_t& offset, bool parse_ref = false) {
+  void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
     if (inner.outOfRange()) {
@@ -358,23 +390,32 @@ class MapView : public Object {
     }
     for (uint64_t i = 0; i < count; ++i) {
       // parse key
-      uint64_t key_length = parseLength(inner, offset);
-      if (inner.outOfRange()) {
-        return;
+      std::string_view key_view;
+      if (map == nullptr) {
+        uint64_t key_length = parseLength(inner, offset);
+        if (inner.outOfRange()) {
+          return;
+        }
+        key_view = std::string_view(inner.curAddr(), key_length);
+        inner.skip(key_length);
+        if (inner.outOfRange()) {
+          return;
+        }
+        offset += key_length;
+      } else {
+        uint32_t id = parseLength(inner, offset);
+        if (inner.outOfRange()) {
+          return;
+        }
+        key_view = map->GetStr(id);
       }
-      std::string_view key_view(inner.curAddr(), key_length);
-      inner.skip(key_length);
-      if (inner.outOfRange()) {
-        return;
-      }
-      offset += key_length;
       // parse value
       ObjectType type = parseObjectType(inner, offset);
       if (inner.outOfRange()) {
         return;
       }
       auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref);
+      v->valueParse(inner, offset, parse_ref, map);
       if (inner.outOfRange()) {
         return;
       }
@@ -384,16 +425,28 @@ class MapView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer) const {
+  void valueSeri(Outer& outer, const StringMap* map) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
       // key seri
-      uint32_t key_length = each.first.size();
-      seriLength(key_length, outer);
-      outer.append(&each.first[0], each.first.size());
+      if (map == nullptr) {
+        uint32_t key_length = each.first.size();
+        seriLength(key_length, outer);
+        outer.append(&each.first[0], each.first.size());
+      } else {
+        uint32_t id = map->GetId(each.first);
+        seriLength(id, outer);
+      }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer);
+      each.second->valueSeri(outer, map);
+    }
+  }
+
+  void registerId(StringMap& map) const {
+    for (auto& each : objects_) {
+      map.RegisterIdFromString(each.first);
+      each.second->registerId(map);
     }
   }
 
@@ -409,40 +462,58 @@ class MapView : public Object {
 
 template <typename Inner>
 requires bridge_inner_concept<Inner>
-void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref) {
+void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
   if (type_ == ObjectType::Map) {
     if (parse_ref == false) {
-      static_cast<Map*>(this)->valueParse(inner, offset, parse_ref);
+      static_cast<Map*>(this)->valueParse(inner, offset, parse_ref, map);
     } else {
-      static_cast<MapView*>(this)->valueParse(inner, offset, parse_ref);
+      static_cast<MapView*>(this)->valueParse(inner, offset, parse_ref, map);
     }
   } else if (type_ == ObjectType::Array) {
-    static_cast<Array*>(this)->valueParse(inner, offset, parse_ref);
+    static_cast<Array*>(this)->valueParse(inner, offset, parse_ref, map);
   } else if (type_ == ObjectType::Data) {
     if (parse_ref == false) {
-      static_cast<Data*>(this)->valueParse(inner, offset, parse_ref);
+      static_cast<Data*>(this)->valueParse(inner, offset, parse_ref, map);
     } else {
-      static_cast<DataView*>(this)->valueParse(inner, offset, parse_ref);
+      static_cast<DataView*>(this)->valueParse(inner, offset, parse_ref, map);
     }
   }
 }
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
-void Object::valueSeri(Outer& outer) const {
+void Object::valueSeri(Outer& outer, const StringMap* map) const {
   if (type_ == ObjectType::Map) {
     if (IsRefType() == false) {
-      static_cast<const Map*>(this)->valueSeri(outer);
+      static_cast<const Map*>(this)->valueSeri(outer, map);
     } else {
-      static_cast<const MapView*>(this)->valueSeri(outer);
+      static_cast<const MapView*>(this)->valueSeri(outer, map);
     }
   } else if (type_ == ObjectType::Array) {
-    static_cast<const Array*>(this)->valueSeri(outer);
+    static_cast<const Array*>(this)->valueSeri(outer, map);
   } else if (type_ == ObjectType::Data) {
     if (IsRefType() == false) {
-      static_cast<const Data*>(this)->valueSeri(outer);
+      static_cast<const Data*>(this)->valueSeri(outer, map);
     } else {
-      static_cast<const DataView*>(this)->valueSeri(outer);
+      static_cast<const DataView*>(this)->valueSeri(outer, map);
+    }
+  }
+}
+
+inline void Object::registerId(StringMap& map) const {
+  if (type_ == ObjectType::Map) {
+    if (IsRefType() == false) {
+      static_cast<const Map*>(this)->registerId(map);
+    } else {
+      static_cast<const MapView*>(this)->registerId(map);
+    }
+  } else if (type_ == ObjectType::Array) {
+    static_cast<const Array*>(this)->registerId(map);
+  } else if (type_ == ObjectType::Data) {
+    if (IsRefType() == false) {
+      static_cast<const Data*>(this)->registerId(map);
+    } else {
+      static_cast<const DataView*>(this)->registerId(map);
     }
   }
 }
@@ -631,23 +702,80 @@ inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>
 
 inline Data* AsData(std::unique_ptr<Object>& obj) { return AsData(obj.get()); }
 
-inline std::string Serialize(std::unique_ptr<Object>&& obj) {
+
+enum class SeriType : char {
+  NORMAL,
+  REPLACE,
+};
+
+constexpr inline char SeriTypeToChar(SeriType st) { return static_cast<char>(st); }
+
+inline std::string SerializeNormal(std::unique_ptr<Object>&& obj) {
   Map root;
   root.Insert("root", std::move(obj));
   std::string ret;
-  root.valueSeri(ret);
+  ret.reserve(1024);
+  ret.push_back(SeriTypeToChar(SeriType::NORMAL));
+  root.valueSeri(ret, nullptr);
   return ret;
 }
 
+inline std::string SerializeReplace(std::unique_ptr<Object>&& obj) {
+  Map root;
+  StringMap string_map;
+  root.Insert("root", std::move(obj));
+  root.registerId(string_map);
+  std::string ret;
+  ret.reserve(1024);
+  ret.push_back(SeriTypeToChar(SeriType::REPLACE));
+  auto string_map_str = string_map.Serialize();
+  seriLength(string_map_str.size(), ret);
+  ret.append(string_map_str);
+  root.valueSeri(ret, &string_map);
+  return ret;
+}
+
+template <SeriType type = SeriType::NORMAL>
+inline std::string Serialize(std::unique_ptr<Object>&& obj) {
+  if constexpr (type == SeriType::NORMAL) {
+    return SerializeNormal(std::move(obj));
+  } else {
+    return SerializeReplace(std::move(obj));
+  }
+}
+
 inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref = false) {
-  auto root = ValueFactory<Map>();
-  size_t offset = 0;
-  InnerWrapper wrapper(content);
-  root->valueParse(wrapper, offset, parse_ref);
-  if (wrapper.outOfRange() || offset != content.size()) {
+  if (content.empty() == true) {
     return nullptr;
   }
-  return root->Get("root");
+  char c = content[0];
+  InnerWrapper wrapper(content);
+  wrapper.skip(1);
+  size_t offset = 1;
+  if (c == SeriTypeToChar(SeriType::NORMAL)) {
+    auto root = ValueFactory<Map>();
+    root->valueParse(wrapper, offset, parse_ref, nullptr);
+    if (wrapper.outOfRange() || offset != content.size()) {
+      return nullptr;
+    }
+    return root->Get("root");
+  } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
+    size_t length = parseLength(wrapper, offset);
+    std::string_view string_map_str(wrapper.curAddr(), length);
+    wrapper.skip(length);
+    offset += length;
+
+    StringMap sm = StringMap::Construct(string_map_str);
+    auto root = ValueFactory<Map>();
+    root->valueParse(wrapper, offset, parse_ref, &sm);
+    if (wrapper.outOfRange() || offset != content.size()) {
+      return nullptr;
+    }
+    return root->Get("root");
+  } else {
+    assert(false);
+    return nullptr;
+  }
 }
 
 }  // namespace bridge

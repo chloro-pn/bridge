@@ -63,6 +63,7 @@ TEST(object, pattern) {
   EXPECT_EQ(view, "world");
 
   std::string content = Serialize(std::move(map));
+  EXPECT_TRUE(content[0] == 0x00 || content[0] == 0x01);
 
   auto new_root = Parse(content, true);
   ObjectWrapper new_wrapper(new_root.get());
