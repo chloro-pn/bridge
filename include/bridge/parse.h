@@ -64,7 +64,7 @@ template <typename Inner>
 uint64_t parseLength(const Inner& inner, size_t& offset) {
   unsigned long long tmp;
   unsigned char bytes;
-  tmp = varint_decode(inner.curAddr(), 128, &bytes);
+  tmp = varint_decode(inner.curAddr(), inner.remain(), &bytes);
   inner.skip(bytes);
   offset += bytes;
   return tmp;
