@@ -5,6 +5,7 @@
 
 #include "bridge/adaptor.h"
 #include "bridge/object.h"
+#include "nlohmann/json.hpp"
 
 using namespace bridge;
 
@@ -22,11 +23,18 @@ int main() {
       "Elizabeth",
       "Katharine",
   };
+  
+  nlohmann::json j;
   for (int i = 0; i < 10000; ++i) {
     std::unordered_map<std::string, std::string> request_info;
     request_info[methods[i % methods.size()]] = request_user[i % request_user.size()];
     info.push_back(request_info);
+    nlohmann::json node;
+    node[methods[i % methods.size()]] = request_user[i % request_user.size()];
+    j.push_back(std::move(node));
   }
+  auto content_json = j.dump();
+  std::cout << "serialize with json use " << content_json.size() << " bytes" << std::endl;
   auto v = adaptor(info);
   auto content1 = Serialize(std::move(v));
   std::cout << "serialize without string_map use " << content1.size() << " bytes" << std::endl;
@@ -35,7 +43,9 @@ int main() {
   auto content2 = Serialize<SeriType::REPLACE>(std::move(v2));
   std::cout << "serialize with string_map use " << content2.size() << " bytes" << std::endl;
 
-  std::cout << "without string_map / with string_map == " << double(content1.size()) / content2.size() << std::endl;
+  std::cout << "json / string_map == " << double(content_json.size()) / content2.size() << std::endl;
+
+  std::cout << "no_string_map / string_map == " << double(content1.size()) / content2.size() << std::endl;
 
   auto root = Parse(content1);
   auto root2 = Parse(content2);

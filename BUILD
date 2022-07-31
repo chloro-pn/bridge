@@ -19,6 +19,7 @@ cc_binary(
   srcs = ["example/string_map.cc"],
   deps = [
     ":bridge",
+    "@nlohmann-json//:json",
   ]
 )
 
