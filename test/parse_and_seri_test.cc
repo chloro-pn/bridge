@@ -18,10 +18,16 @@ TEST(parse_and_seri, string_map) {
   AsMap(v)->Insert("tags", ValueFactory<Data>("hello world"));
   auto content = Serialize<SeriType::REPLACE>(std::move(v));
 
-  auto root = Parse(content);
+  auto root = Parse(content, true);
   ObjectWrapper wrapper(root.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
   EXPECT_EQ(wrapper.Size(), 3);
-  EXPECT_EQ(wrapper["v1"][0].Get<int32_t>().value(), 1);
-  EXPECT_EQ(wrapper["tags"].Get<std::string>().value(), "hello world");
+  EXPECT_EQ(wrapper["tags"].GetView(), "hello world");
+
+  auto root2 = Parse(content);
+  ObjectWrapper wrapper2(root2.get());
+  EXPECT_EQ(wrapper2.GetType(), ObjectType::Map);
+  EXPECT_EQ(wrapper2.Size(), 3);
+  EXPECT_EQ(wrapper2["tags"].Get<std::string>().value(), "hello world");
+  EXPECT_EQ(wrapper2["v1"][0].Get<int32_t>().value(), 1);
 }

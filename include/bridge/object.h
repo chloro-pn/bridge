@@ -490,67 +490,47 @@ class MapView : public Object {
 
   size_t Size() const { return objects_.size(); }
 
+  std::unique_ptr<Object> Get(const std::string& key) {
+    if (objects_.count(key) == 0) {
+      return nullptr;
+    }
+    return std::move(objects_[key]);
+  }
+
  private:
   std::unordered_map<std::string_view, std::unique_ptr<Object>> objects_;
 };
 
+#define BRIDGE_SPACE_PLAC
+
+#define BRIDGE_DISPATCH(func_name, spec, ...)                    \
+  if (type_ == ObjectType::Map) {                                \
+    if (IsRefType() == false) {                                  \
+      static_cast<spec Map*>(this)->func_name(__VA_ARGS__);      \
+    } else {                                                     \
+      static_cast<spec MapView*>(this)->func_name(__VA_ARGS__);  \
+    }                                                            \
+  } else if (type_ == ObjectType::Array) {                       \
+    static_cast<spec Array*>(this)->func_name(__VA_ARGS__);      \
+  } else if (type_ == ObjectType::Data) {                        \
+    if (IsRefType() == false) {                                  \
+      static_cast<spec Data*>(this)->func_name(__VA_ARGS__);     \
+    } else {                                                     \
+      static_cast<spec DataView*>(this)->func_name(__VA_ARGS__); \
+    }                                                            \
+  }
+
 template <typename Inner>
 requires bridge_inner_concept<Inner>
 void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-  if (type_ == ObjectType::Map) {
-    if (parse_ref == false) {
-      static_cast<Map*>(this)->valueParse(inner, offset, parse_ref, map);
-    } else {
-      static_cast<MapView*>(this)->valueParse(inner, offset, parse_ref, map);
-    }
-  } else if (type_ == ObjectType::Array) {
-    static_cast<Array*>(this)->valueParse(inner, offset, parse_ref, map);
-  } else if (type_ == ObjectType::Data) {
-    if (parse_ref == false) {
-      static_cast<Data*>(this)->valueParse(inner, offset, parse_ref, map);
-    } else {
-      static_cast<DataView*>(this)->valueParse(inner, offset, parse_ref, map);
-    }
-  }
+  BRIDGE_DISPATCH(valueParse, BRIDGE_SPACE_PLAC, inner, offset, parse_ref, map)
 }
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
-void Object::valueSeri(Outer& outer, const StringMap* map) const {
-  if (type_ == ObjectType::Map) {
-    if (IsRefType() == false) {
-      static_cast<const Map*>(this)->valueSeri(outer, map);
-    } else {
-      static_cast<const MapView*>(this)->valueSeri(outer, map);
-    }
-  } else if (type_ == ObjectType::Array) {
-    static_cast<const Array*>(this)->valueSeri(outer, map);
-  } else if (type_ == ObjectType::Data) {
-    if (IsRefType() == false) {
-      static_cast<const Data*>(this)->valueSeri(outer, map);
-    } else {
-      static_cast<const DataView*>(this)->valueSeri(outer, map);
-    }
-  }
-}
+void Object::valueSeri(Outer& outer, const StringMap* map) const { BRIDGE_DISPATCH(valueSeri, const, outer, map) }
 
-inline void Object::registerId(StringMap& map) const {
-  if (type_ == ObjectType::Map) {
-    if (IsRefType() == false) {
-      static_cast<const Map*>(this)->registerId(map);
-    } else {
-      static_cast<const MapView*>(this)->registerId(map);
-    }
-  } else if (type_ == ObjectType::Array) {
-    static_cast<const Array*>(this)->registerId(map);
-  } else if (type_ == ObjectType::Data) {
-    if (IsRefType() == false) {
-      static_cast<const Data*>(this)->registerId(map);
-    } else {
-      static_cast<const DataView*>(this)->registerId(map);
-    }
-  }
-}
+inline void Object::registerId(StringMap& map) const { BRIDGE_DISPATCH(registerId, const, map) }
 
 template <typename T, typename... Args>
 inline std::unique_ptr<T> ValueFactory(Args&&... args) {
@@ -785,13 +765,17 @@ inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref 
   InnerWrapper wrapper(content);
   wrapper.skip(1);
   size_t offset = 1;
+  std::unique_ptr<Object> root;
+  if (parse_ref == false) {
+    root = ValueFactory<Map>();
+  } else {
+    root = ValueFactory<MapView>();
+  }
   if (c == SeriTypeToChar(SeriType::NORMAL)) {
-    auto root = ValueFactory<Map>();
     root->valueParse(wrapper, offset, parse_ref, nullptr);
     if (wrapper.outOfRange() || offset != content.size()) {
       return nullptr;
     }
-    return root->Get("root");
   } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
     size_t length = parseLength(wrapper, offset);
     std::string_view string_map_str(wrapper.curAddr(), length);
@@ -799,16 +783,15 @@ inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref 
     offset += length;
 
     StringMap sm = StringMap::Construct(string_map_str);
-    auto root = ValueFactory<Map>();
     root->valueParse(wrapper, offset, parse_ref, &sm);
     if (wrapper.outOfRange() || offset != content.size()) {
       return nullptr;
     }
-    return root->Get("root");
   } else {
     assert(false);
     return nullptr;
   }
+  return parse_ref == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
 }
 
 }  // namespace bridge
