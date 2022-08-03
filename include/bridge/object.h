@@ -537,6 +537,27 @@ inline std::unique_ptr<T> ValueFactory(Args&&... args) {
   return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
+template <typename... Args>
+inline std::unique_ptr<Data> data(Args&&... args) {
+  return std::make_unique<Data>(std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+inline std::unique_ptr<DataView> data_view(Args&&... args) {
+  return std::make_unique<DataView>(std::forward<Args>(args)...);
+}
+
+
+template <typename... Args>
+inline std::unique_ptr<Array> array(Args&&... args) {
+  return std::make_unique<Array>(std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+inline std::unique_ptr<Map> map(Args&&... args) {
+  return std::make_unique<Map>(std::forward<Args>(args)...);
+}
+
 inline std::unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
   if (type == ObjectType::Data) {
     if (parse_ref == false) {

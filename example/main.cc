@@ -5,17 +5,15 @@
 
 #include "bridge/object.h"
 
-using namespace bridge;
-
 int main() {
   // Construct the object that need to be serialized
   std::string str("hello world");
-  std::unique_ptr<DataView> v1 = ValueFactory<DataView>(std::string_view(str), BRIDGE_STRING);
-  std::unique_ptr<Data> v2 = ValueFactory<Data>((int32_t)32);
-  std::unique_ptr<Array> arr = ValueFactory<Array>();
+  auto v1 = bridge::data_view(std::string_view(str), BRIDGE_STRING);
+  auto v2 = bridge::data((int32_t)32);
+  auto arr = bridge::array();
   arr->Insert(std::move(v1));
   arr->Insert(std::move(v2));
-  std::unique_ptr<Map> root = ValueFactory<Map>();
+  auto root = bridge::map();
   root->Insert("key", std::move(arr));
   /* serialize :
      {
@@ -27,18 +25,18 @@ int main() {
   */
   std::string tmp = Serialize(std::move(root));
   // deserialize (ref-parse mode)
-  auto new_root = Parse(tmp, true);
+  auto new_root = bridge::Parse(tmp, true);
   // access new_root through ObjectWrapper proxy
-  ObjectWrapper wrapper(new_root.get());
+  bridge::ObjectWrapper wrapper(new_root.get());
   std::cout << wrapper["key"][0].GetView().value() << std::endl;
 
   tmp = Serialize(std::move(new_root));
-  new_root = Parse(tmp);
-  ObjectWrapper new_wrapper(new_root.get());
+  new_root = bridge::Parse(tmp);
+  bridge::ObjectWrapper new_wrapper(new_root.get());
   // if the access path does not meet the requirements, the final result's Empty() method return true.
   assert(new_wrapper["not_exist_key"][0].Empty() == true);
   assert(new_wrapper["key"][3].Empty() == true);
-  AsMap(new_root)->Insert("new_key", ValueFactory<Data>("new_root"));
+  bridge::AsMap(new_root)->Insert("new_key", bridge::data("new_root"));
   std::cout << new_wrapper["new_key"].Get<std::string>().value() << std::endl;
   return 0;
 }
