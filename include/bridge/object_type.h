@@ -11,6 +11,19 @@ enum class ObjectType : char {
 
 inline char ObjectTypeToChar(ObjectType type) { return static_cast<char>(type); }
 
+inline const char* ObjectTypeToStr(ObjectType type) {
+  switch (type) {
+    case ObjectType::Data:
+      return "Data";
+    case ObjectType::Map:
+      return "Map";
+    case ObjectType::Array:
+      return "Array";
+    default:
+      return "Invalid";
+  }
+}
+
 inline ObjectType CharToObjectType(char c) {
   if (c == ObjectTypeToChar(ObjectType::Data)) {
     return ObjectType::Data;

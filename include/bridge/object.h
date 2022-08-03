@@ -27,6 +27,8 @@ class Object {
 
   virtual ~Object() = default;
 
+  // type dispatch functions:
+
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map);
@@ -36,6 +38,8 @@ class Object {
   void valueSeri(Outer& outer, const StringMap* map) const;
 
   void registerId(StringMap& map) const;
+
+  void dump(std::string& buf, int level) const;
 
  private:
   ObjectType type_;
@@ -155,6 +159,14 @@ class Data : public Object {
     }
   }
 
+  void dump(std::string& buf, int level) const {
+    std::string prefix(level, ' ');
+    buf.append(prefix + ObjectTypeToStr(GetType()));
+    buf.append("[ ");
+    buf.append(DataTypeToStr(data_type_));
+    buf.append(" ]");
+  }
+
  private:
   std::vector<char> data_;
   uint8_t data_type_;
@@ -220,6 +232,14 @@ class DataView : public Object {
     }
   }
 
+  void dump(std::string& buf, int level) const {
+    std::string prefix(level, ' ');
+    buf.append(prefix + ObjectTypeToStr(GetType()));
+    buf.append("[ ");
+    buf.append(DataTypeToStr(data_type_));
+    buf.append(" ]");
+  }
+
  private:
   std::string_view view_;
   uint8_t data_type_;
@@ -278,6 +298,15 @@ class Array : public Object {
   void registerId(StringMap& map) const {
     for (auto& each : objects_) {
       each->registerId(map);
+    }
+  }
+
+  void dump(std::string& buf, int level) const {
+    std::string prefix(level, ' ');
+    buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
+    for (auto& each : objects_) {
+      buf.push_back('\n');
+      each->dump(buf, level + 1);
     }
   }
 
@@ -398,6 +427,18 @@ class Map : public Object {
     }
   }
 
+  void dump(std::string& buf, int level) const {
+    std::string prefix(level, ' ');
+    buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
+    std::string key_prefix(level + 1, ' ');
+    for (auto& each : objects_) {
+      buf.push_back('\n');
+      buf.append(key_prefix + "< " + each.first + " > : ");
+      buf.push_back('\n');
+      each.second->dump(buf, level + 2);
+    }
+  }
+
  private:
   std::unordered_map<std::string, std::unique_ptr<Object>> objects_;
 };
@@ -484,6 +525,18 @@ class MapView : public Object {
     }
   }
 
+  void dump(std::string& buf, int level) const {
+    std::string prefix(level, ' ');
+    buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
+    std::string key_prefix(level + 1, ' ');
+    for (auto& each : objects_) {
+      buf.push_back('\n');
+      buf.append(key_prefix + "< " + std::string(each.first) + " > : ");
+      buf.push_back('\n');
+      each.second->dump(buf, level + 2);
+    }
+  }
+
   auto Begin() const { return objects_.begin(); }
 
   auto End() const { return objects_.end(); }
@@ -532,6 +585,8 @@ void Object::valueSeri(Outer& outer, const StringMap* map) const { BRIDGE_DISPAT
 
 inline void Object::registerId(StringMap& map) const { BRIDGE_DISPATCH(registerId, const, map) }
 
+inline void Object::dump(std::string& buf, int level) const { BRIDGE_DISPATCH(dump, const, buf, level) }
+
 template <typename T, typename... Args>
 inline std::unique_ptr<T> ValueFactory(Args&&... args) {
   return std::make_unique<T>(std::forward<Args>(args)...);
@@ -546,7 +601,6 @@ template <typename... Args>
 inline std::unique_ptr<DataView> data_view(Args&&... args) {
   return std::make_unique<DataView>(std::forward<Args>(args)...);
 }
-
 
 template <typename... Args>
 inline std::unique_ptr<Array> array(Args&&... args) {

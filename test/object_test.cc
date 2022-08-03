@@ -22,20 +22,31 @@ TEST(object, data) {
   EXPECT_EQ(data.GetDataType(), BRIDGE_INVALID);
   EXPECT_EQ(data.Get<std::string>().has_value(), false);
   EXPECT_EQ(data.Get<uint32_t>().has_value(), false);
+}
 
+TEST(object, data_string) {
+  Data data;
   data = std::string("hello world");
+  EXPECT_EQ(data.GetDataType(), BRIDGE_STRING);
   EXPECT_EQ(data.Get<std::string>().value(), "hello world");
+  char buf[] = "value2";
+  data = buf;
   EXPECT_EQ(data.GetDataType(), BRIDGE_STRING);
-  data = uint32_t(32);
-  EXPECT_EQ(data.Get<uint32_t>().value(), (int32_t)32);
+  EXPECT_EQ(data.Get<std::string>().value(), "value2");
+}
+
+TEST(object, data_int) {
+  Data data;
+  data = (int32_t)2143;
+  EXPECT_EQ(data.GetDataType(), BRIDGE_INT32);
+  EXPECT_EQ(data.Get<int32_t>().value(), 2143);
+  data = (uint32_t)12138;
   EXPECT_EQ(data.GetDataType(), BRIDGE_UINT32);
-  char cstr[6] = "world";
-  data = cstr;
-  EXPECT_EQ(data.GetDataType(), BRIDGE_STRING);
-  EXPECT_EQ(data.Get<std::string>().value(), "world");
-  auto view = data.GetView();
-  EXPECT_EQ(view[0], 'w');
-  EXPECT_EQ(view[1], 'o');
+  EXPECT_EQ(data.Get<uint32_t>().value(), 12138);
+}
+
+TEST(object, data_float) {
+  Data data;
   data = 2.15f;
   EXPECT_EQ(data.GetDataType(), BRIDGE_FLOAT);
   EXPECT_FLOAT_EQ(data.Get<float>().value(), 2.15);

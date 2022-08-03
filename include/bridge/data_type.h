@@ -39,6 +39,41 @@ DataTypeTraitStruct(uint64_t, UINT64);
 DataTypeTraitStruct(float, FLOAT);
 DataTypeTraitStruct(double, DOUBLE);
 
+inline const char* DataTypeToStr(uint8_t data_type) {
+  switch (data_type) {
+    case BRIDGE_BYTES: {
+      return "bytes";
+    }
+    case BRIDGE_STRING: {
+      return "string";
+    }
+    case BRIDGE_INT32: {
+      return "int32";
+    }
+    case BRIDGE_UINT32: {
+      return "uint32";
+    }
+    case BRIDGE_INT64: {
+      return "int64";
+    }
+    case BRIDGE_UINT64: {
+      return "uint64";
+    }
+    case BRIDGE_FLOAT: {
+      return "float";
+    }
+    case BRIDGE_DOUBLE: {
+      return "double";
+    }
+    case BRIDGE_CUSTOM: {
+      return "custom";
+    }
+    default: {
+      return "invalid";
+    }
+  }
+}
+
 template <typename T>
 struct DataTypeTrait {
   using decay_t = std::remove_const_t<std::remove_reference_t<T>>;

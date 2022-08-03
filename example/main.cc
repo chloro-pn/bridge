@@ -23,6 +23,9 @@ int main() {
        ],
      }
   */
+  std::string buf;
+  root->dump(buf, 0);
+  std::cout << "--- dump --- " << std::endl << buf << std::endl << "------------ " << std::endl;
   std::string tmp = Serialize(std::move(root));
   // deserialize (ref-parse mode)
   auto new_root = bridge::Parse(tmp, true);
