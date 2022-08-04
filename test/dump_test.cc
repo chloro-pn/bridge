@@ -1,7 +1,6 @@
-#include "bridge/object.h"
-
 #include <string>
 
+#include "bridge/object.h"
 #include "gtest/gtest.h"
 using namespace bridge;
 
