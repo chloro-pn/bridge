@@ -1,0 +1,19 @@
+name: c++ CI
+on: push
+
+jobs:
+  bazel-and-test:
+    name: Build-And-Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: print-bazel-version
+      run: bazel --version
+    - name: install g++11
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: 11
+    - name: build
+      run: bazel build "..."
+    - name: test
+      run: bazel test "..."
