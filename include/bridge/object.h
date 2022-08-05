@@ -9,6 +9,7 @@
 
 #include "bridge/data_type.h"
 #include "bridge/inner.h"
+#include "bridge/object_pool.h"
 #include "bridge/object_type.h"
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
@@ -46,7 +47,7 @@ class Object {
   bool ref_type_;
 };
 
-std::unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref = false);
+unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref = false);
 
 class Data : public Object {
  public:
@@ -71,12 +72,14 @@ class Data : public Object {
   Data& operator=(T&& obj) {
     data_type_ = DataTypeTrait<T>::dt;
     serialize(std::forward<T>(obj), data_);
+    return *this;
   }
 
   template <bridge_custom_type T>
   Data& operator=(T&& obj) {
     data_type_ = BRIDGE_CUSTOM;
     serialize(obj.SerializeToBridge(), data_);
+    return *this;
   }
 
   template <typename T>
@@ -249,10 +252,9 @@ class Array : public Object {
  public:
   Array() : Object(ObjectType::Array, false) {}
 
-  Array(std::vector<std::unique_ptr<Object>>&& values)
-      : Object(ObjectType::Array, false), objects_(std::move(values)) {}
+  Array(std::vector<unique_ptr<Object>>&& values) : Object(ObjectType::Array, false), objects_(std::move(values)) {}
 
-  void Insert(std::unique_ptr<Object>&& value) { objects_.push_back(std::move(value)); }
+  void Insert(unique_ptr<Object>&& value) { objects_.push_back(std::move(value)); }
 
   void Clear() { objects_.clear(); }
 
@@ -311,18 +313,18 @@ class Array : public Object {
   }
 
  private:
-  std::vector<std::unique_ptr<Object>> objects_;
+  std::vector<unique_ptr<Object>> objects_;
 };
 
 class Map : public Object {
  public:
   Map() : Object(ObjectType::Map, false) {}
 
-  bool Insert(const std::string& key, std::unique_ptr<Object>&& value) {
+  bool Insert(const std::string& key, unique_ptr<Object>&& value) {
     if (objects_.count(key) != 0) {
       return false;
     }
-    objects_[key] = std::move(value);
+    objects_.insert({key, std::move(value)});
     return true;
   }
 
@@ -342,11 +344,12 @@ class Map : public Object {
     return it->second.get();
   }
 
-  std::unique_ptr<Object> Get(const std::string& key) {
-    if (objects_.count(key) == 0) {
-      return nullptr;
+  unique_ptr<Object> Get(const std::string& key) {
+    auto it = objects_.find(key);
+    if (it == objects_.end()) {
+      return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
-    return std::move(objects_[key]);
+    return std::move(it->second);
   }
 
   size_t Size() const { return objects_.size(); }
@@ -440,7 +443,7 @@ class Map : public Object {
   }
 
  private:
-  std::unordered_map<std::string, std::unique_ptr<Object>> objects_;
+  std::unordered_map<std::string, unique_ptr<Object>> objects_;
 };
 
 class MapView : public Object {
@@ -494,7 +497,7 @@ class MapView : public Object {
       if (inner.outOfRange()) {
         return;
       }
-      objects_[key_view] = std::move(v);
+      objects_.insert({key_view, std::move(v)});
     }
   }
 
@@ -543,15 +546,18 @@ class MapView : public Object {
 
   size_t Size() const { return objects_.size(); }
 
-  std::unique_ptr<Object> Get(const std::string& key) {
-    if (objects_.count(key) == 0) {
-      return nullptr;
+  unique_ptr<Object> Get(const std::string& key) {
+    auto it = objects_.find(key);
+    if (it == objects_.end()) {
+      return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
-    return std::move(objects_[key]);
+    return std::move(it->second);
   }
 
+  void Insert(std::string_view key_view, unique_ptr<Object>&& value) { objects_.insert({key_view, std::move(value)}); }
+
  private:
-  std::unordered_map<std::string_view, std::unique_ptr<Object>> objects_;
+  std::unordered_map<std::string_view, unique_ptr<Object>> objects_;
 };
 
 #define BRIDGE_SPACE_PLAC
@@ -588,31 +594,36 @@ inline void Object::registerId(StringMap& map) const { BRIDGE_DISPATCH(registerI
 inline void Object::dump(std::string& buf, int level) const { BRIDGE_DISPATCH(dump, const, buf, level) }
 
 template <typename T, typename... Args>
-inline std::unique_ptr<T> ValueFactory(Args&&... args) {
-  return std::make_unique<T>(std::forward<Args>(args)...);
+inline unique_ptr<T> ValueFactory(Args&&... args) {
+  return unique_ptr<T>(ObjectPool<T>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
 template <typename... Args>
-inline std::unique_ptr<Data> data(Args&&... args) {
-  return std::make_unique<Data>(std::forward<Args>(args)...);
+inline unique_ptr<Data> data(Args&&... args) {
+  return unique_ptr<Data>(ObjectPool<Data>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
 template <typename... Args>
-inline std::unique_ptr<DataView> data_view(Args&&... args) {
-  return std::make_unique<DataView>(std::forward<Args>(args)...);
+inline unique_ptr<DataView> data_view(Args&&... args) {
+  return unique_ptr<DataView>(ObjectPool<DataView>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
 template <typename... Args>
-inline std::unique_ptr<Array> array(Args&&... args) {
-  return std::make_unique<Array>(std::forward<Args>(args)...);
+inline unique_ptr<Array> array(Args&&... args) {
+  return unique_ptr<Array>(ObjectPool<Array>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
 template <typename... Args>
-inline std::unique_ptr<Map> map(Args&&... args) {
-  return std::make_unique<Map>(std::forward<Args>(args)...);
+inline unique_ptr<Map> map(Args&&... args) {
+  return unique_ptr<Map>(ObjectPool<Map>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
-inline std::unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
+template <typename... Args>
+inline unique_ptr<MapView> map_view(Args&&... args) {
+  return unique_ptr<MapView>(ObjectPool<MapView>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+}
+
+inline unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
   if (type == ObjectType::Data) {
     if (parse_ref == false) {
       return ValueFactory<Data>();
@@ -628,7 +639,7 @@ inline std::unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
   } else if (type == ObjectType::Array) {
     return ValueFactory<Array>();
   } else {
-    return nullptr;
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
 }
 
@@ -636,8 +647,8 @@ class ObjectWrapper;
 
 class ObjectWrapperIterator {
  public:
-  using holder_type = std::unordered_map<std::string, std::unique_ptr<Object>>::const_iterator;
-  using holder_type_view = std::unordered_map<std::string_view, std::unique_ptr<Object>>::const_iterator;
+  using holder_type = std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
+  using holder_type_view = std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
 
   ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
 
@@ -767,7 +778,7 @@ inline Map* AsMap(Object* obj) {
 
 inline const Map* AsMap(const Object* obj) { return AsMap(const_cast<Object*>(obj)); }
 
-inline Map* AsMap(std::unique_ptr<Object>& obj) { return AsMap(obj.get()); }
+inline Map* AsMap(unique_ptr<Object>& obj) { return AsMap(obj.get()); }
 
 inline Array* AsArray(Object* obj) {
   if (obj->GetType() != ObjectType::Array) {
@@ -778,7 +789,7 @@ inline Array* AsArray(Object* obj) {
 
 inline const Array* AsArray(const Object* obj) { return AsArray(const_cast<Object*>(obj)); }
 
-inline Array* AsArray(std::unique_ptr<Object>& obj) { return AsArray(obj.get()); }
+inline Array* AsArray(unique_ptr<Object>& obj) { return AsArray(obj.get()); }
 
 inline Data* AsData(Object* obj) {
   if (obj->GetType() != ObjectType::Data || obj->IsRefType() == true) {
@@ -789,7 +800,7 @@ inline Data* AsData(Object* obj) {
 
 inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>(obj)); }
 
-inline Data* AsData(std::unique_ptr<Object>& obj) { return AsData(obj.get()); }
+inline Data* AsData(unique_ptr<Object>& obj) { return AsData(obj.get()); }
 
 enum class SeriType : char {
   NORMAL,
@@ -798,7 +809,7 @@ enum class SeriType : char {
 
 constexpr inline char SeriTypeToChar(SeriType st) { return static_cast<char>(st); }
 
-inline std::string SerializeNormal(std::unique_ptr<Object>&& obj) {
+inline std::string SerializeNormal(unique_ptr<Object>&& obj) {
   Map root;
   root.Insert("root", std::move(obj));
   std::string ret;
@@ -808,7 +819,7 @@ inline std::string SerializeNormal(std::unique_ptr<Object>&& obj) {
   return ret;
 }
 
-inline std::string SerializeReplace(std::unique_ptr<Object>&& obj) {
+inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
   Map root;
   StringMap string_map;
   root.Insert("root", std::move(obj));
@@ -824,7 +835,7 @@ inline std::string SerializeReplace(std::unique_ptr<Object>&& obj) {
 }
 
 template <SeriType type = SeriType::NORMAL>
-inline std::string Serialize(std::unique_ptr<Object>&& obj) {
+inline std::string Serialize(unique_ptr<Object>&& obj) {
   if constexpr (type == SeriType::NORMAL) {
     return SerializeNormal(std::move(obj));
   } else {
@@ -832,15 +843,15 @@ inline std::string Serialize(std::unique_ptr<Object>&& obj) {
   }
 }
 
-inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref = false) {
+inline unique_ptr<Object> Parse(const std::string& content, bool parse_ref = false) {
   if (content.empty() == true) {
-    return nullptr;
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
   char c = content[0];
   InnerWrapper wrapper(content);
   wrapper.skip(1);
   size_t offset = 1;
-  std::unique_ptr<Object> root;
+  unique_ptr<Object> root(nullptr, object_pool_deleter);
   if (parse_ref == false) {
     root = ValueFactory<Map>();
   } else {
@@ -849,7 +860,7 @@ inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref 
   if (c == SeriTypeToChar(SeriType::NORMAL)) {
     root->valueParse(wrapper, offset, parse_ref, nullptr);
     if (wrapper.outOfRange() || offset != content.size()) {
-      return nullptr;
+      return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
   } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
     size_t length = parseLength(wrapper, offset);
@@ -860,11 +871,11 @@ inline std::unique_ptr<Object> Parse(const std::string& content, bool parse_ref 
     StringMap sm = StringMap::Construct(string_map_str);
     root->valueParse(wrapper, offset, parse_ref, &sm);
     if (wrapper.outOfRange() || offset != content.size()) {
-      return nullptr;
+      return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
   } else {
     assert(false);
-    return nullptr;
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
   return parse_ref == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
 }

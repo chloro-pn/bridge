@@ -31,6 +31,15 @@ cc_binary(
   ]
 )
 
+cc_binary(
+  name = "bench_mark",
+  srcs = ["benchmark/bench_mark.cc"],
+  deps = [
+    ":bridge",
+    "@rapid-json//:rapidjson",
+  ],
+)
+
 cc_test(
   name = "bridge_test",
   srcs = glob(["test/*.cc"]),

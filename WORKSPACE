@@ -12,3 +12,10 @@ new_git_repository(
     tag = "v3.10.5",
     build_file = "//third_party:json.build",
 )
+
+new_git_repository(
+    name = "rapid-json",
+    remote = "https://github.com/Tencent/rapidjson",
+    tag = "v1.1.0",
+    build_file = "//third_party:rapidjson.build",
+)

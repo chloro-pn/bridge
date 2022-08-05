@@ -12,26 +12,26 @@ namespace bridge {
 
 template <typename T>
 requires bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const T& t) { return ValueFactory<Data>(t); }
+inline unique_ptr<Object> adaptor(const T& t) { return ValueFactory<Data>(t); }
 
 // 必须前置声明，否则vector版本看不到unordered_map版本
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec);
+inline unique_ptr<Object> adaptor(const std::vector<T>& vec);
 
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec);
+inline unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec);
 
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec);
+inline unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec);
 
 // 声明结束
 
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec) {
+inline unique_ptr<Object> adaptor(const std::vector<T>& vec) {
   auto ret = ValueFactory<Array>();
   for (const auto& each : vec) {
     auto v = adaptor(each);
@@ -42,7 +42,7 @@ inline std::unique_ptr<Object> adaptor(const std::vector<T>& vec) {
 
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec) {
+inline unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>& vec) {
   auto ret = ValueFactory<Map>();
   for (const auto& each : vec) {
     ret->Insert(each.first, adaptor(each.second));
@@ -52,7 +52,7 @@ inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string, T>&
 
 template <typename T>
 requires bridge_adaptor_type<T> || bridge_type<T>
-inline std::unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec) {
+inline unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec) {
   auto ret = ValueFactory<Map>();
   for (const auto& each : vec) {
     ret->Insert(std::string(each.first), adaptor(each.second));

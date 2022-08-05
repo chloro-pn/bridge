@@ -75,7 +75,7 @@ class StringMap {
       offset += key_length;
       wrapper.skip(key_length);
       uint32_t id = parseLength(wrapper, offset);
-      ret.map_[str] = id;
+      ret.map_.insert({str, id});
     }
     return ret;
   }
