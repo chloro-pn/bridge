@@ -63,19 +63,37 @@ class alignas(MaxAlign<Ts...>::value) variant {
   variant() = default;
 
   template <typename T, typename... Args>
-  void construct(Args... args) {
+  void construct(Args... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
     static_assert(ValidType<T>::value, "invalid type");
     new (buf_) T(std::forward<Args>(args)...);
   }
 
+  // 由于已经丧失了存储对象的类型信息，因此使用者在拷贝/移动本对象前需要负责对象的销毁、移动和复制。本类实际上是不可移动且不可复制的。
+  variant(const variant&) = delete;
+  variant(variant&&) = delete;
+  variant& operator=(const variant&) = delete;
+  variant& operator=(variant&&) = delete;
+
   template <typename T>
-  T& get() {
+  T& get() noexcept {
     static_assert(ValidType<T>::value, "invalid type");
     return *reinterpret_cast<T*>(buf_);
   }
 
   template <typename T>
-  void destruct() {
+  const T& get() const noexcept {
+    static_assert(ValidType<T>::value, "invalid type");
+    return *reinterpret_cast<T*>(buf_);
+  }
+
+  template <typename T>
+  T&& move() noexcept {
+    static_assert(ValidType<T>::value, "invalid type");
+    return std::move(*reinterpret_cast<T*>(buf_));
+  }
+
+  template <typename T>
+  void destruct() noexcept(std::is_nothrow_destructible_v<T>) {
     static_assert(ValidType<T>::value, "invalid type");
     reinterpret_cast<T*>(buf_)->~T();
   }

@@ -1,5 +1,7 @@
 #include "bridge/variant.h"
 
+#include <variant>
+
 #include "gtest/gtest.h"
 using namespace bridge;
 
@@ -47,6 +49,14 @@ TEST(variant, index) {
   EXPECT_EQ(i, c);
 }
 
+// 内存对齐+type-flag导致variant占用过多padding，在对象池/内存池场景下可以将type-flag统一存储在varint外，优化内存使用。
+TEST(variant, std_variant) {
+  std::variant<std::string> v;
+  EXPECT_EQ(sizeof(v), sizeof(std::string) + alignof(std::string));
+  std::variant<double> v2;
+  EXPECT_EQ(sizeof(v2), 2 * sizeof(double));
+}
+
 TEST(variant, variant) {
   variant<tmp, uint8_t, uint16_t, double, std::string> v;
   EXPECT_EQ(sizeof(v), std::max(sizeof(tmp), sizeof(std::string)));
@@ -57,7 +67,9 @@ TEST(variant, variant) {
   v.construct<std::string>("hello world");
   std::string& str = v.get<std::string>();
   EXPECT_EQ(str, "hello world");
+  std::string new_str(v.move<std::string>());
   v.destruct<std::string>();
+  EXPECT_EQ(new_str, "hello world");
   v.construct<tmp>();
   EXPECT_EQ(tmp::count, 1);
   v.destruct<tmp>();
