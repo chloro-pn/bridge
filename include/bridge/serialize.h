@@ -4,44 +4,38 @@
 #include <string>
 #include <vector>
 
+#include "bridge/data_type.h"
 #include "bridge/type_trait.h"
+#include "bridge/util.h"
 
 namespace bridge {
 
-template <typename T>
-inline void serialize(const T& obj, std::vector<char>& container);
-
 template <size_t n>
-inline void serialize(const char (&arr)[n], std::vector<char>& container) {
+inline void serialize(const char (&arr)[n], bridge_variant& container) {
   size_t real_n = n;
-  if (n > 0 && arr[n - 1] == '\0') {
+  if (n > 0 && arr[n-1] == '\0') {
     real_n = n - 1;
   }
-  container.resize(real_n);
-  memcpy(&container[0], &(arr[0]), real_n);
+  std::string_view tmp(&arr[0], real_n);
+  container.construct<std::string>(tmp);
 }
 
-template <>
-inline void serialize(const std::string& obj, std::vector<char>& container) {
-  size_t len = obj.size();
-  container.resize(len);
-  memcpy(&container[0], obj.data(), len);
+inline void serialize(const std::string& obj, bridge_variant& container) { container.construct<std::string>(obj); }
+
+inline void serialize(std::string&& obj, bridge_variant& container) { container.construct<std::string>(std::move(obj)); }
+
+inline void serialize(const std::vector<char>& obj, bridge_variant& container) {
+  container.construct<std::vector<char>>(obj);
 }
 
-template <>
-inline void serialize(const std::vector<char>& obj, std::vector<char>& container) {
-  container = obj;
+inline void serialize(std::vector<char>&& obj, bridge_variant& container) {
+  container.construct<std::vector<char>>(std::move(obj));
 }
 
 template <typename T>
 requires bridge_integral<T> || bridge_floating<T>
-inline void serialize(const T& obj, std::vector<char>& container) {
-  T tmp = obj;
-  container.resize(sizeof(obj));
-  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
-    tmp = flipByByte(tmp);
-  }
-  memcpy(&container[0], &tmp, sizeof(tmp));
+inline void serialize(const T& obj, bridge_variant& container) {
+  container.construct<T>(obj);
 }
 
 template <typename Outer>
@@ -55,6 +49,39 @@ void seriLength(uint32_t length, Outer& outer) {
   unsigned char bytes = 0;
   varint_encode(length, buf, sizeof(buf), &bytes);
   outer.append(static_cast<const char*>(buf), static_cast<size_t>(bytes));
+}
+
+#define BRIDGE_SIZE(data_type, real_type) \
+else if (dt == data_type) { \
+  real_type t = data.get<real_type>(); \
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) { \
+    t = flipByByte(t); \
+  } \
+  seriLength(sizeof(t), outer); \
+  outer.append((const char*)&t, sizeof(t)); \
+}
+
+template <typename Outer>
+requires bridge_outer_concept<Outer>
+void seriData(uint8_t dt, const bridge_variant& data, Outer& outer) {
+  if (dt == BRIDGE_BYTES || dt == BRIDGE_CUSTOM) {
+    const std::vector<char>& tmp = data.get<std::vector<char>>();
+    seriLength(tmp.size(), outer);
+    outer.append(&tmp[0], tmp.size());
+  } else if (dt == BRIDGE_STRING) {
+    const std::string& tmp = data.get<std::string>();
+    seriLength(tmp.size(), outer);
+    outer.append(&tmp[0], tmp.size());
+  }
+  BRIDGE_SIZE(BRIDGE_INT32, int32_t)
+  BRIDGE_SIZE(BRIDGE_UINT32, uint32_t)
+  BRIDGE_SIZE(BRIDGE_INT64, int64_t)
+  BRIDGE_SIZE(BRIDGE_UINT64, uint64_t)
+  BRIDGE_SIZE(BRIDGE_FLOAT, float)
+  BRIDGE_SIZE(BRIDGE_DOUBLE, double)
+  else {
+    assert(false);
+  }
 }
 
 template <typename Outer>

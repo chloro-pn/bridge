@@ -59,8 +59,6 @@ TEST(object, pattern) {
   EXPECT_EQ(wrapper["not_exist_key"][3].Empty(), true);
   EXPECT_EQ(wrapper.Size(), 1);
   EXPECT_EQ(wrapper["key"].Size(), 3);
-  auto view = wrapper["key"][1].GetView();
-  EXPECT_EQ(view, "world");
 
   std::string content = Serialize(std::move(map));
   EXPECT_TRUE(content[0] == 0x00 || content[0] == 0x01);

@@ -53,12 +53,12 @@ struct Index<T, LastType> {
 template <typename T, typename... Ts>
 struct NotExist;
 
-template<typename T, typename LastT>
+template <typename T, typename LastT>
 struct NotExist<T, LastT> {
   constexpr static bool value = !std::is_same_v<T, LastT>;
 };
 
-template<typename T, typename TheT, typename... Ts>
+template <typename T, typename TheT, typename... Ts>
 struct NotExist<T, TheT, Ts...> {
   constexpr static bool value = std::is_same_v<T, TheT> ? false : NotExist<T, Ts...>::value;
 };
@@ -82,7 +82,8 @@ concept variant_types = Unique<Ts...>::value;
 
 // 与std::variant相比不存储标识类型的flag，因此不会有因为内存对齐导致的额外开销
 // 由使用者负责构造、析构
-template <typename... Ts> requires variant_types<Ts...>
+template <typename... Ts>
+requires variant_types<Ts...>
 class alignas(MaxAlign<Ts...>::value) variant {
  private:
   template <typename T>
@@ -114,7 +115,7 @@ class alignas(MaxAlign<Ts...>::value) variant {
   template <typename T>
   const T& get() const noexcept {
     static_assert(ValidType<T>::value, "invalid type");
-    return *reinterpret_cast<T*>(buf_);
+    return *reinterpret_cast<const T*>(buf_);
   }
 
   template <typename T>

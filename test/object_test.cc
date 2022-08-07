@@ -108,9 +108,6 @@ TEST(object, custom) {
   Data data{TestStruct('x')};
   EXPECT_EQ(data.GetType(), ObjectType::Data);
   EXPECT_EQ(data.GetDataType(), BRIDGE_CUSTOM);
-  std::string_view view = data.GetView();
-  EXPECT_EQ(view.size(), 6);
-  EXPECT_EQ(view, "xhello");
   auto it = data.Get<TestStruct>();
   EXPECT_EQ(it.has_value(), true);
   EXPECT_EQ(it.value().c, 'x');

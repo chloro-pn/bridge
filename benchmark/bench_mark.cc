@@ -36,7 +36,7 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
       "Barbara", "Elizabeth", "Katharine", "Judy", "Doris", "Rudy", "Amanda",
   };
 
-  for (int i = 0; i < 1000000; ++i) {
+  for (int i = 0; i < 100000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
 
     tmp[key_set[i % key_set.size()]] = value_set[i % value_set.size()];
@@ -50,7 +50,7 @@ std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   std::vector<std::string> key_set = {
       "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
   };
-  for (int i = 0; i < 1000000; ++i) {
+  for (int i = 0; i < 100000; ++i) {
     std::unordered_map<std::string, uint64_t> tmp;
 
     tmp[key_set[i % key_set.size()]] = i;
@@ -110,14 +110,14 @@ int main() {
     const std::string& key = each.begin()->first;
     const uint64_t& id = each.begin()->second;
     auto map = bridge::map_view();
-    map->Insert(key, bridge::data_view(std::string_view((const char*)&id, sizeof(id)), BRIDGE_UINT64));
+    map->Insert(key, bridge::data(id));
     array->Insert(std::move(map));
   }
   std::string ret = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(array));
   tmp = timer.End();
   std::cout << "bridge use " << tmp << " ms, size = " << ret.size() << std::endl;
   timer.Start();
-  auto root = bridge::Parse(ret, true);
+  auto root = bridge::Parse(ret, false);
   tmp = timer.End();
   std::cout << "bridge parse use " << tmp << " ms" << std::endl;
   return 0;

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "bridge/data_type.h"
 #include "bridge/object_type.h"
 #include "bridge/type_trait.h"
 #include "bridge/util.h"
@@ -14,50 +15,8 @@
 namespace bridge {
 
 template <typename T>
-inline T parse(const char* ptr, size_t n);
-
-template <>
-inline std::string parse(const char* ptr, size_t n) {
-  std::string ret;
-  if (ptr != nullptr) {
-    assert(n != 0);
-    ret.resize(n);
-    memcpy(&ret[0], ptr, n);
-  }
-  return ret;
-}
-
-template <>
-inline std::vector<char> parse(const char* ptr, size_t n) {
-  std::vector<char> ret;
-  if (ptr != nullptr) {
-    assert(n != 0);
-    ret.resize(n);
-    memcpy(&ret[0], ptr, n);
-  }
-  return ret;
-}
-
-template <typename T>
-requires bridge_integral<T> || bridge_floating<T>
-inline T parse(const char* ptr, size_t n) {
-  T ret{0};
-  if (ptr != nullptr) {
-    assert(n == sizeof(T));
-    memcpy(&ret, ptr, n);
-  }
-  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
-    return flipByByte(ret);
-  }
-  return ret;
-}
-
-template <typename T>
-T parse(const std::vector<char>& data) {
-  if (data.empty() == true) {
-    return parse<T>(nullptr, 0);
-  }
-  return parse<T>(&data[0], data.size());
+const T& parse(const bridge_variant& data) {
+  return data.get<T>();
 }
 
 template <typename Inner>
@@ -76,6 +35,41 @@ uint8_t parseDataType(const Inner& inner, size_t& offset) {
   inner.skip(sizeof(tmp));
   offset += sizeof(tmp);
   return tmp;
+}
+
+#define BRIDGE_PARSE(dt, real_type) \
+else if (data_type == dt) { \
+  real_type t{0}; \
+  assert(sizeof(t) == len); \
+  memcpy(&t, ptr, len); \
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) { \
+    t = flipByByte(t); \
+  } \
+  data.construct<real_type>(t); \
+}
+
+inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_variant& data) {
+  if (data_type == BRIDGE_BYTES || data_type == BRIDGE_CUSTOM) {
+    data.construct<std::vector<char>>();
+    std::vector<char>& tmp = data.get<std::vector<char>>();
+    tmp.resize(len);
+    memcpy(&tmp[0], ptr, len);
+  } else if (data_type == BRIDGE_STRING) {
+    data.construct<std::string>();
+    std::string& tmp = data.get<std::string>();
+    tmp.resize(len);
+    memcpy(&tmp[0], ptr, len);
+  }
+  BRIDGE_PARSE(BRIDGE_INT32, int32_t)
+  BRIDGE_PARSE(BRIDGE_UINT32, uint32_t)
+  BRIDGE_PARSE(BRIDGE_INT64, int64_t)
+  BRIDGE_PARSE(BRIDGE_UINT64, uint64_t)
+  BRIDGE_PARSE(BRIDGE_FLOAT, float)
+  BRIDGE_PARSE(BRIDGE_DOUBLE, double)
+  else {
+    //todo:优化解析错误处理
+    assert(false);
+  }
 }
 
 template <typename Inner>

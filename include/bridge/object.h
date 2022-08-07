@@ -15,6 +15,7 @@
 #include "bridge/serialize.h"
 #include "bridge/string_map.h"
 #include "bridge/type_trait.h"
+#include "bridge/variant.h"
 
 namespace bridge {
 
@@ -58,27 +59,29 @@ class Data : public Object {
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
     assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
-    serialize(std::forward<T>(obj), data_);
+    serialize(std::forward<T>(obj), variant_);
   }
 
   template <bridge_custom_type T>
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
     assert(data_type_ == BRIDGE_CUSTOM);
-    serialize(obj.SerializeToBridge(), data_);
+    serialize(obj.SerializeToBridge(), variant_);
   }
 
   template <typename T>
   Data& operator=(T&& obj) {
+    destruct_by_datatype();
     data_type_ = DataTypeTrait<T>::dt;
-    serialize(std::forward<T>(obj), data_);
+    serialize(std::forward<T>(obj), variant_);
     return *this;
   }
 
   template <bridge_custom_type T>
   Data& operator=(T&& obj) {
+    destruct_by_datatype();
     data_type_ = BRIDGE_CUSTOM;
-    serialize(obj.SerializeToBridge(), data_);
+    serialize(obj.SerializeToBridge(), variant_);
     return *this;
   }
 
@@ -91,7 +94,7 @@ class Data : public Object {
     if (DataTypeTrait<T>::dt != data_type_) {
       return std::optional<T>();
     }
-    return std::optional(parse<T>(data_));
+    return std::optional(parse<T>(variant_));
   }
 
   template <typename T>
@@ -103,10 +106,8 @@ class Data : public Object {
     if (DataTypeTrait<T>::dt != data_type_) {
       return std::optional<T>();
     }
-    return std::optional(T::ConstructFromBridge(data_));
+    return std::optional(T::ConstructFromBridge(variant_.get<std::vector<char>>()));
   }
-
-  std::string_view GetView() const { return std::string_view(static_cast<const char*>(&data_[0]), data_.size()); }
 
   uint8_t GetDataType() const { return data_type_; }
 
@@ -124,16 +125,14 @@ class Data : public Object {
         return;
       }
       std::string_view str = map->GetStr(id);
-      data_.resize(str.size());
-      memcpy(&data_[0], &str[0], str.size());
+      variant_.construct<std::string>(str);
       return;
     }
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
-    data_.resize(size);
-    memcpy(&data_[0], inner.curAddr(), size);
+    parseData(data_type_, inner.curAddr(), size, variant_);
     inner.skip(size);
     if (inner.outOfRange()) {
       return;
@@ -147,18 +146,18 @@ class Data : public Object {
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
-      uint32_t id = map->GetId(std::string_view(&data_[0], data_.size()));
+      std::string_view view(variant_.get<std::string>());
+      uint32_t id = map->GetId(view);
       seriLength(id, outer);
       return;
     }
-    uint32_t length = data_.size();
-    seriLength(length, outer);
-    outer.append(&data_[0], data_.size());
+    seriData(data_type_, variant_, outer);
   }
 
   void registerId(StringMap& map) const {
     if (data_type_ == BRIDGE_STRING) {
-      map.RegisterIdFromString(std::string_view(&data_[0], data_.size()));
+      std::string_view view(variant_.get<std::string>());
+      map.RegisterIdFromString(view);
     }
   }
 
@@ -171,8 +170,16 @@ class Data : public Object {
   }
 
  private:
-  std::vector<char> data_;
+  bridge_variant variant_;
   uint8_t data_type_;
+
+  void destruct_by_datatype() {
+    if (data_type_ == BRIDGE_STRING) {
+      variant_.destruct<std::string>();
+    } else if (data_type_ == BRIDGE_CUSTOM || data_type_ == BRIDGE_BYTES) {
+      variant_.destruct<std::vector<char>>();
+    }
+  }
 };
 
 class DataView : public Object {
@@ -753,7 +760,7 @@ class ObjectWrapper {
     if (obj_->IsRefType() == true) {
       return static_cast<const DataView*>(obj_)->GetView();
     }
-    return static_cast<const Data*>(obj_)->GetView();
+    return std::optional<std::string_view>();
   }
 
   bool Empty() const { return obj_ == nullptr; }

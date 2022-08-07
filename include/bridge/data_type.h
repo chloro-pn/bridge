@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "bridge/type_trait.h"
+#include "bridge/variant.h"
 
 namespace bridge {
 
@@ -89,4 +90,6 @@ template <size_t n>
 struct DataTypeTrait<const char (&)[n]> {
   static constexpr uint8_t dt = BRIDGE_STRING;
 };
+
+using bridge_variant = variant<std::vector<char>, std::string, int32_t, uint32_t, int64_t, uint64_t, float, double>;
 }  // namespace bridge
