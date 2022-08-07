@@ -49,6 +49,25 @@ TEST(variant, index) {
   EXPECT_EQ(i, c);
 }
 
+TEST(variant, not_exist) {
+  auto v = NotExist<int, int>::value;
+  EXPECT_EQ(v, false);
+  v = NotExist<uint8_t, short, int, double>::value;
+  EXPECT_EQ(v, true);
+  using my_type = int;
+  v = NotExist<int, my_type>::value;
+  EXPECT_EQ(v, false);
+}
+
+TEST(variant, unique) {
+  auto v = Unique<int, double, std::string>::value;
+  EXPECT_EQ(v, true);
+  v = Unique<std::string, std::string, double>::value;
+  EXPECT_EQ(v, false);
+  v = Unique<std::string>::value;
+  EXPECT_EQ(v, true);
+}
+
 // 内存对齐+type-flag导致variant占用过多padding，在对象池/内存池场景下可以将type-flag统一存储在varint外，优化内存使用。
 TEST(variant, std_variant) {
   std::variant<std::string> v;
