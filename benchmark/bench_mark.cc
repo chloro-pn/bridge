@@ -117,7 +117,7 @@ int main() {
   tmp = timer.End();
   std::cout << "bridge use " << tmp << " ms, size = " << ret.size() << std::endl;
   timer.Start();
-  auto root = bridge::Parse(ret, false);
+  auto root = bridge::Parse(ret, true);
   tmp = timer.End();
   std::cout << "bridge parse use " << tmp << " ms" << std::endl;
   return 0;

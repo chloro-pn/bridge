@@ -31,7 +31,7 @@ int main() {
   auto new_root = bridge::Parse(tmp, true);
   // access new_root through ObjectWrapper proxy
   bridge::ObjectWrapper wrapper(new_root.get());
-  std::cout << wrapper["key"][0].GetView().value() << std::endl;
+  std::cout << wrapper["key"][0].GetView().value() << ", ";
 
   tmp = Serialize(std::move(new_root));
   new_root = bridge::Parse(tmp);
@@ -39,7 +39,7 @@ int main() {
   // if the access path does not meet the requirements, the final result's Empty() method return true.
   assert(new_wrapper["not_exist_key"][0].Empty() == true);
   assert(new_wrapper["key"][3].Empty() == true);
-  bridge::AsMap(new_root)->Insert("new_key", bridge::data("new_root"));
+  bridge::AsMap(new_root)->Insert("new_key", bridge::data("this is bridge"));
   std::cout << new_wrapper["new_key"].Get<std::string>().value() << std::endl;
   return 0;
 }

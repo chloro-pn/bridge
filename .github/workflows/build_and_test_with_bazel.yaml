@@ -17,3 +17,5 @@ jobs:
       run: bazel build "..."
     - name: test
       run: bazel test "..."
+    - name: example
+      run: bazel run //:example
