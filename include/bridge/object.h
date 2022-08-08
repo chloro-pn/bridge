@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 
 #include "bridge/data_type.h"
@@ -450,7 +451,7 @@ class Map : public Object {
   }
 
  private:
-  std::unordered_map<std::string, unique_ptr<Object>> objects_;
+  std::map<std::string, unique_ptr<Object>> objects_;
 };
 
 class MapView : public Object {
@@ -564,7 +565,7 @@ class MapView : public Object {
   void Insert(std::string_view key_view, unique_ptr<Object>&& value) { objects_.insert({key_view, std::move(value)}); }
 
  private:
-  std::unordered_map<std::string_view, unique_ptr<Object>> objects_;
+  std::map<std::string_view, unique_ptr<Object>> objects_;
 };
 
 #define BRIDGE_SPACE_PLAC
@@ -654,8 +655,8 @@ class ObjectWrapper;
 
 class ObjectWrapperIterator {
  public:
-  using holder_type = std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
-  using holder_type_view = std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
+  using holder_type = std::map<std::string, unique_ptr<Object>>::const_iterator;
+  using holder_type_view = std::map<std::string_view, unique_ptr<Object>>::const_iterator;
 
   ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
 

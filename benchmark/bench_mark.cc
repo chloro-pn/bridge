@@ -93,7 +93,7 @@ int main() {
   std::string new_buf(output, buf.GetSize());
   timer.Start();
   Document parsed;
-  parsed.Parse(&new_buf[0]);
+  parsed.ParseInsitu(&new_buf[0]);
   tmp = timer.End();
   std::cout << "rapidjson parse use " << tmp << " ms" << std::endl;
 
