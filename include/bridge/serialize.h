@@ -51,7 +51,7 @@ void seriLength(uint32_t length, Outer& outer) {
   outer.append(static_cast<const char*>(buf), static_cast<size_t>(bytes));
 }
 
-#define BRIDGE_SIZE(data_type, real_type) \
+#define BRIDGE_SERI(data_type, real_type) \
 else if (dt == data_type) { \
   real_type t = data.get<real_type>(); \
   if (Endian::Instance().GetEndianType() == Endian::Type::Little) { \
@@ -73,12 +73,12 @@ void seriData(uint8_t dt, const bridge_variant& data, Outer& outer) {
     seriLength(tmp.size(), outer);
     outer.append(&tmp[0], tmp.size());
   }
-  BRIDGE_SIZE(BRIDGE_INT32, int32_t)
-  BRIDGE_SIZE(BRIDGE_UINT32, uint32_t)
-  BRIDGE_SIZE(BRIDGE_INT64, int64_t)
-  BRIDGE_SIZE(BRIDGE_UINT64, uint64_t)
-  BRIDGE_SIZE(BRIDGE_FLOAT, float)
-  BRIDGE_SIZE(BRIDGE_DOUBLE, double)
+  BRIDGE_SERI(BRIDGE_INT32, int32_t)
+  BRIDGE_SERI(BRIDGE_UINT32, uint32_t)
+  BRIDGE_SERI(BRIDGE_INT64, int64_t)
+  BRIDGE_SERI(BRIDGE_UINT64, uint64_t)
+  BRIDGE_SERI(BRIDGE_FLOAT, float)
+  BRIDGE_SERI(BRIDGE_DOUBLE, double)
   else {
     assert(false);
   }
