@@ -30,7 +30,7 @@ A high-performance and concise serialization and deserialization Library
 int main() {
   // Construct the object that need to be serialized
   std::string str("hello world");
-  auto v1 = bridge::data_view(std::string_view(str), BRIDGE_STRING);
+  auto v1 = bridge::data_view(std::string_view(str));
   auto v2 = bridge::data((int32_t)32);
   auto arr = bridge::array();
   arr->Insert(std::move(v1));

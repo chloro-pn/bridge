@@ -36,7 +36,7 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
       "Barbara", "Elizabeth", "Katharine", "Judy", "Doris", "Rudy", "Amanda",
   };
 
-  for (int i = 0; i < 100000; ++i) {
+  for (int i = 0; i < 300000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
 
     tmp[key_set[i % key_set.size()]] = value_set[i % value_set.size()];
@@ -50,7 +50,7 @@ std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   std::vector<std::string> key_set = {
       "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
   };
-  for (int i = 0; i < 100000; ++i) {
+  for (int i = 0; i < 300000; ++i) {
     std::unordered_map<std::string, uint64_t> tmp;
 
     tmp[key_set[i % key_set.size()]] = i;
@@ -103,7 +103,7 @@ int main() {
     const std::string& key = each.begin()->first;
     const std::string& value = each.begin()->second;
     auto map = bridge::map_view();
-    map->Insert(key, bridge::data_view(value, BRIDGE_STRING));
+    map->Insert(key, bridge::data_view(value));
     array->Insert(std::move(map));
   }
   for (auto& each : info2) {

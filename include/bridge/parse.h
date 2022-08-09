@@ -37,16 +37,16 @@ uint8_t parseDataType(const Inner& inner, size_t& offset) {
   return tmp;
 }
 
-#define BRIDGE_PARSE(dt, real_type) \
-else if (data_type == dt) { \
-  real_type t{0}; \
-  assert(sizeof(t) == len); \
-  memcpy(&t, ptr, len); \
-  if (Endian::Instance().GetEndianType() == Endian::Type::Little) { \
-    t = flipByByte(t); \
-  } \
-  data.construct<real_type>(t); \
-}
+#define BRIDGE_PARSE(dt, real_type)                                   \
+  else if (data_type == dt) {                                         \
+    real_type t{0};                                                   \
+    assert(sizeof(t) == len);                                         \
+    memcpy(&t, ptr, len);                                             \
+    if (Endian::Instance().GetEndianType() == Endian::Type::Little) { \
+      t = flipByByte(t);                                              \
+    }                                                                 \
+    data.construct<real_type>(t);                                     \
+  }
 
 inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_variant& data) {
   if (data_type == BRIDGE_BYTES || data_type == BRIDGE_CUSTOM) {
@@ -67,7 +67,24 @@ inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_var
   BRIDGE_PARSE(BRIDGE_FLOAT, float)
   BRIDGE_PARSE(BRIDGE_DOUBLE, double)
   else {
-    //todo:优化解析错误处理
+    // todo:优化解析错误处理
+    assert(false);
+  }
+}
+
+inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_view_variant& data) {
+  assert(data_type != BRIDGE_CUSTOM && data_type != BRIDGE_INVALID);
+  if (data_type == BRIDGE_BYTES || data_type == BRIDGE_STRING) {
+    data.construct<std::string_view>(ptr, len);
+  }
+  BRIDGE_PARSE(BRIDGE_INT32, int32_t)
+  BRIDGE_PARSE(BRIDGE_UINT32, uint32_t)
+  BRIDGE_PARSE(BRIDGE_INT64, int64_t)
+  BRIDGE_PARSE(BRIDGE_UINT64, uint64_t)
+  BRIDGE_PARSE(BRIDGE_FLOAT, float)
+  BRIDGE_PARSE(BRIDGE_DOUBLE, double)
+  else {
+    // todo:优化解析错误处理
     assert(false);
   }
 }

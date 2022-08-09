@@ -22,7 +22,7 @@ TEST(parse_and_seri, string_map) {
   ObjectWrapper wrapper(root.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
   EXPECT_EQ(wrapper.Size(), 3);
-  EXPECT_EQ(wrapper["tags"].GetView(), "hello world");
+  EXPECT_EQ(wrapper["tags"].Get<std::string_view>().value(), "hello world");
 
   auto root2 = Parse(content);
   ObjectWrapper wrapper2(root2.get());

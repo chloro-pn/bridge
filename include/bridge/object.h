@@ -1,11 +1,11 @@
 #pragma once
 
 #include <cstring>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <map>
 #include <vector>
 
 #include "bridge/data_type.h"
@@ -98,9 +98,17 @@ class Data : public Object {
     return std::optional(parse<T>(variant_));
   }
 
-  template <typename T>
-  requires bridge_custom_type<T> std::optional<T> Get()
-  const {
+  template <bridge_data_type T>
+  const T* GetStr() const {
+    static_assert(NoRefNoPointer<T>::value);
+    if (DataTypeTrait<T>::dt != data_type_) {
+      return nullptr;
+    }
+    return &parse<T>(variant_);
+  }
+
+  template <bridge_custom_type T>
+  std::optional<T> Get() const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
@@ -185,14 +193,51 @@ class Data : public Object {
 
 class DataView : public Object {
  public:
-  DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID), view_() {}
+  DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID) {}
 
-  explicit DataView(std::string_view data_view, uint8_t data_type)
-      : Object(ObjectType::Data, true), data_type_(data_type), view_(data_view) {}
+  template <typename T>
+  explicit DataView(const T& obj) : Object(ObjectType::Data, true) {
+    data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
+    serialize(obj, variant_);
+  }
 
-  std::string_view GetView() const { return view_; }
+  explicit DataView(std::string_view obj) : Object(ObjectType::Data, true) {
+    data_type_ = BRIDGE_STRING;
+    serialize(obj, variant_);
+  }
+
+  template <bridge_data_type T>
+  DataView& operator=(const T& obj) {
+    // data view 不持有资源，因此不需要析构
+    // destruct_by_datatype();
+    data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
+    serialize(obj, variant_);
+    return *this;
+  }
 
   uint8_t GetDataType() const { return data_type_; }
+
+  template <typename T>
+  requires bridge_integral<T> || bridge_floating<T> || std::same_as<T, std::string_view> std::optional<T> Get()
+  const {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return GetStrView();
+    }
+    // 当处于不合法状态时，总是返回空的optional
+    if (DataTypeTrait<T>::dt != data_type_) {
+      return std::optional<T>();
+    }
+    return std::optional(variant_.get<T>());
+  }
+
+  std::optional<std::string_view> GetStrView() const {
+    if (!(data_type_ == BRIDGE_STRING || data_type_ == BRIDGE_BYTES)) {
+      return std::optional<std::string_view>();
+    }
+    return std::optional(variant_.get<std::string_view>());
+  }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
@@ -207,14 +252,14 @@ class DataView : public Object {
       if (inner.outOfRange()) {
         return;
       }
-      view_ = map->GetStr(id);
+      variant_.construct<std::string_view>(map->GetStr(id));
       return;
     }
     uint64_t size = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
-    view_ = std::string_view(inner.curAddr(), size);
+    parseData(data_type_, inner.curAddr(), size, variant_);
     inner.skip(size);
     if (inner.outOfRange()) {
       return;
@@ -228,18 +273,16 @@ class DataView : public Object {
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
-      uint32_t id = map->GetId(view_);
+      uint32_t id = map->GetId(variant_.get<std::string_view>());
       seriLength(id, outer);
       return;
     }
-    uint32_t length = view_.size();
-    seriLength(length, outer);
-    outer.append(&view_[0], view_.size());
+    seriData(data_type_, variant_, outer);
   }
 
   void registerId(StringMap& map) const {
     if (data_type_ == BRIDGE_STRING) {
-      map.RegisterIdFromString(view_);
+      map.RegisterIdFromString(variant_.get<std::string_view>());
     }
   }
 
@@ -252,7 +295,7 @@ class DataView : public Object {
   }
 
  private:
-  std::string_view view_;
+  bridge_view_variant variant_;
   uint8_t data_type_;
 };
 
@@ -685,6 +728,54 @@ class ObjectWrapperIterator {
   bool view_;
 };
 
+template <typename T>
+struct function_ {
+  std::optional<T> Get() const {
+    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
+      return std::optional<T>();
+    }
+    if (obj_->IsRefType() == false) {
+      return static_cast<const Data*>(obj_)->Get<T>();
+    }
+    return static_cast<const DataView*>(obj_)->Get<T>();
+  }
+
+  const Object* obj_;
+  explicit function_(const Object* obj) : obj_(obj) {}
+};
+
+template <>
+struct function_<std::string> {
+  std::optional<std::string> Get() const {
+    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
+      return std::optional<std::string>();
+    }
+    if (obj_->IsRefType() == false) {
+      return static_cast<const Data*>(obj_)->Get<std::string>();
+    }
+    return std::optional<std::string>();
+  }
+
+  const Object* obj_;
+  explicit function_(const Object* obj) : obj_(obj) {}
+};
+
+template <>
+struct function_<std::string_view> {
+  std::optional<std::string_view> Get() const {
+    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
+      return std::optional<std::string_view>();
+    }
+    if (obj_->IsRefType() == true) {
+      return static_cast<const DataView*>(obj_)->Get<std::string_view>();
+    }
+    return std::optional<std::string_view>();
+  }
+
+  const Object* obj_;
+  explicit function_(const Object* obj) : obj_(obj) {}
+};
+
 class ObjectWrapper {
  public:
   ObjectWrapper() : obj_(nullptr) {}
@@ -745,23 +836,19 @@ class ObjectWrapper {
 
   template <typename T>
   std::optional<T> Get() const {
-    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<T>();
-    }
-    if (obj_->IsRefType() == false) {
-      return static_cast<const Data*>(obj_)->Get<T>();
-    }
-    return std::optional<T>();
+    return function_<T>(obj_).Get();
   }
 
-  std::optional<std::string_view> GetView() const {
+  template <typename T>
+  const T* GetStr() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<std::string_view>();
+      return nullptr;
     }
+    // todo : 支持DataView
     if (obj_->IsRefType() == true) {
-      return static_cast<const DataView*>(obj_)->GetView();
+      return nullptr;
     }
-    return std::optional<std::string_view>();
+    return static_cast<const Data*>(obj_)->GetStr<T>();
   }
 
   bool Empty() const { return obj_ == nullptr; }

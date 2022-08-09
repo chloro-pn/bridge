@@ -55,12 +55,18 @@ TEST(object, data_float) {
   EXPECT_DOUBLE_EQ(data.Get<double>().value(), 3.33);
 }
 
+TEST(object, data_str) {
+  Data d;
+  EXPECT_EQ(d.GetStr<double>(), nullptr);
+  d = 2.15f;
+  EXPECT_FLOAT_EQ(*d.GetStr<float>(), 2.15f);
+  EXPECT_EQ(d.GetStr<uint32_t>(), nullptr);
+}
+
 TEST(object, data_view) {
   std::string str("hello world");
-  DataView view(std::string_view(str), BRIDGE_STRING);
-  EXPECT_EQ(view.GetDataType(), BRIDGE_STRING);
-  EXPECT_EQ(view.GetView(), str);
-  EXPECT_EQ(&view.GetView()[0], &str[0]);
+  DataView v{std::string_view(str)};
+  EXPECT_EQ(v.GetDataType(), BRIDGE_STRING);
 }
 
 TEST(object, array) {

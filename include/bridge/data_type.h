@@ -92,4 +92,6 @@ struct DataTypeTrait<const char (&)[n]> {
 };
 
 using bridge_variant = variant<std::vector<char>, std::string, int32_t, uint32_t, int64_t, uint64_t, float, double>;
+// view类型只对于整型数据直接持有，对于字节数组和字符串类型持有string_view引用
+using bridge_view_variant = variant<std::string_view, int32_t, uint32_t, int64_t, uint64_t, float, double>;
 }  // namespace bridge
