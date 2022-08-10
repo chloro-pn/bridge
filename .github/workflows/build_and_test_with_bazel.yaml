@@ -19,3 +19,5 @@ jobs:
       run: bazel test "..."
     - name: example
       run: bazel run //:example
+    - name: benchmark
+      run: bazel run //:bench_mark

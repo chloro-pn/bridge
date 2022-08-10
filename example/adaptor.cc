@@ -1,11 +1,10 @@
-#include "bridge/adaptor.h"
-
 #include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "bridge/object.h"
+#include "bridge/adaptor.h"
 
 using namespace bridge;
 
@@ -15,7 +14,10 @@ int main() {
   id_map["row2"] = {3, 4, 5};
   id_map["row3"] = {6, 7, 8};
   auto v = adaptor(id_map);
-  ObjectWrapper w(v.get());
+  std::string buf = Serialize<SeriType::NORMAL>(std::move(v));
+  // ...
+  auto root = Parse(buf, false);
+  ObjectWrapper w(root.get());
   auto it = w.GetIteraotr().value();
   for (; it.Valid(); ++it) {
     std::cout << it.GetKey() << " ";
@@ -25,5 +27,6 @@ int main() {
     }
     std::cout << std::endl;
   }
+  ClearResource();
   return 0;
 }

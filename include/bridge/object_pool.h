@@ -5,12 +5,12 @@
 #include <vector>
 
 namespace bridge {
-template <typename T>
+template <typename T, size_t capacity = 10240>
 struct alignas(alignof(T)) Block {
  public:
   Block() : top_(0) {}
 
-  bool Full() const { return top_ == 1024; }
+  bool Full() const { return top_ == capacity; }
 
   template <typename... Args>
   T* Alloc(Args&&... args) {
@@ -31,7 +31,7 @@ struct alignas(alignof(T)) Block {
   }
 
  private:
-  char buf_[1024 * sizeof(T)];
+  char buf_[capacity * sizeof(T)];
   size_t top_;
 };
 
@@ -41,7 +41,7 @@ struct alignas(alignof(T)) Block {
 template <typename T>
 class ObjectPool {
  public:
-  ObjectPool() { blocks_.reserve(32); }
+  ObjectPool() { blocks_.reserve(4); }
 
   ~ObjectPool() { Clear(); }
 

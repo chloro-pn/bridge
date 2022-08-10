@@ -47,8 +47,8 @@ TEST(object, data_wrapper) {
   auto d = data();
   *d = "hello world";
   ObjectWrapper w(d.get());
-  EXPECT_EQ(*w.GetStr<std::string>(), "hello world");
-  EXPECT_EQ(w.GetStr<uint32_t>(), nullptr);
+  EXPECT_EQ(*w.GetPtr<std::string>(), "hello world");
+  EXPECT_EQ(w.GetPtr<uint32_t>(), nullptr);
 }
 
 TEST(object, wrapper_iter) {

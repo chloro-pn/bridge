@@ -4,62 +4,51 @@ A high-performance and concise serialization and deserialization Library
 
 ### features
 
-* header-only
+* **header-only**
 * sufficient unit-test
-* support pattern matching in code form (use the Pattern object to verify whether the Object meets some constraints)
-* support serialization of arbitrary binary data
-* convenient access interface ( objectwrapper )
-* compile time detection (based on c++20:concept)
-* support customization of serialization interface of custom type
-* support serialization adapters based on standard containers (only vector and unordered_map up to now)
-* support ref-parse mode (avoid the cost of a large number of small object copies by holding the original byte array's pointer)
+* support **Pattern Matching** (use the Pattern object to verify whether the Object meets some constraints)
+* support serialization of **Arbitrary Binary Data**
+* support **Dictionary Encoding**
+* convenient access interface ( ObjectWrapper )
+* support **Serialization Adapters** based on standard containers (only vector and unordered_map up to now)
+* support **in-situ Parse**
+* support export to readable format
 
 ### requirement
-* cpp compiler supporting c++20
-* bazel
+* cpp compiler supporting c++20 (like g++-11)
+* bazel 5.2.0
 
 ### example 
 ```c++
-#include <cassert>
 #include <iostream>
-#include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "bridge/object.h"
+#include "bridge/adaptor.h"
+
+using namespace bridge;
 
 int main() {
-  // Construct the object that need to be serialized
-  std::string str("hello world");
-  auto v1 = bridge::data_view(std::string_view(str));
-  auto v2 = bridge::data((int32_t)32);
-  auto arr = bridge::array();
-  arr->Insert(std::move(v1));
-  arr->Insert(std::move(v2));
-  auto root = bridge::map();
-  root->Insert("key", std::move(arr));
-  /* serialize :
-     {
-       "key" : [
-        "hello world",
-        32,
-       ],
-     }
-  */
-  std::string tmp = Serialize(std::move(root));
-  // deserialize (ref-parse mode)
-  auto new_root = bridge::Parse(tmp, true);
-  // access new_root through ObjectWrapper proxy
-  bridge::ObjectWrapper wrapper(new_root.get());
-  std::cout << wrapper["key"][0].GetView().value() << std::endl;
-
-  tmp = Serialize(std::move(new_root));
-  new_root = bridge::Parse(tmp);
-  bridge::ObjectWrapper new_wrapper(new_root.get());
-  // if the access path does not meet the requirements, the final result's Empty() method return true.
-  assert(new_wrapper["not_exist_key"][0].Empty() == true);
-  assert(new_wrapper["key"][3].Empty() == true);
-  bridge::AsMap(new_root)->Insert("new_key", bridge::data("new_root"));
-  std::cout << new_wrapper["new_key"].Get<std::string>().value() << std::endl;
+  std::unordered_map<std::string, std::vector<uint32_t>> id_map;
+  id_map["row1"] = {0, 1, 2};
+  id_map["row2"] = {3, 4, 5};
+  id_map["row3"] = {6, 7, 8};
+  auto v = adaptor(id_map);
+  std::string buf = Serialize<SeriType::NORMAL>(std::move(v));
+  // ...
+  auto root = Parse(buf, false);
+  ObjectWrapper w(root.get());
+  auto it = w.GetIteraotr().value();
+  for (; it.Valid(); ++it) {
+    std::cout << it.GetKey() << " ";
+    auto arr = it.GetValue();
+    for (int j = 0; j < arr.Size(); ++j) {
+      std::cout << arr[j].Get<uint32_t>().value() << " ";
+    }
+    std::cout << std::endl;
+  }
   return 0;
 }
 ```

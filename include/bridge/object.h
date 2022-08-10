@@ -99,7 +99,7 @@ class Data : public Object {
   }
 
   template <bridge_data_type T>
-  const T* GetStr() const {
+  const T* GetPtr() const {
     static_assert(NoRefNoPointer<T>::value);
     if (DataTypeTrait<T>::dt != data_type_) {
       return nullptr;
@@ -840,7 +840,7 @@ class ObjectWrapper {
   }
 
   template <typename T>
-  const T* GetStr() const {
+  const T* GetPtr() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
       return nullptr;
     }
@@ -848,7 +848,7 @@ class ObjectWrapper {
     if (obj_->IsRefType() == true) {
       return nullptr;
     }
-    return static_cast<const Data*>(obj_)->GetStr<T>();
+    return static_cast<const Data*>(obj_)->GetPtr<T>();
   }
 
   bool Empty() const { return obj_ == nullptr; }
@@ -973,6 +973,14 @@ inline unique_ptr<Object> Parse(const std::string& content, bool parse_ref = fal
     return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
   return parse_ref == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
+}
+
+inline void ClearResource() {
+  ObjectPool<Data>::Instance().Clear();
+  ObjectPool<DataView>::Instance().Clear();
+  ObjectPool<Array>::Instance().Clear();
+  ObjectPool<Map>::Instance().Clear();
+  ObjectPool<MapView>::Instance().Clear();
 }
 
 }  // namespace bridge

@@ -114,10 +114,12 @@ int main() {
     array->Insert(std::move(map));
   }
   std::string ret = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(array));
+  bridge::ClearResource();
   tmp = timer.End();
   std::cout << "bridge use " << tmp << " ms, size = " << ret.size() << std::endl;
   timer.Start();
   auto root = bridge::Parse(ret, true);
+  bridge::ClearResource();
   tmp = timer.End();
   std::cout << "bridge parse use " << tmp << " ms" << std::endl;
   return 0;

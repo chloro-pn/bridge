@@ -57,10 +57,10 @@ TEST(object, data_float) {
 
 TEST(object, data_str) {
   Data d;
-  EXPECT_EQ(d.GetStr<double>(), nullptr);
+  EXPECT_EQ(d.GetPtr<double>(), nullptr);
   d = 2.15f;
-  EXPECT_FLOAT_EQ(*d.GetStr<float>(), 2.15f);
-  EXPECT_EQ(d.GetStr<uint32_t>(), nullptr);
+  EXPECT_FLOAT_EQ(*d.GetPtr<float>(), 2.15f);
+  EXPECT_EQ(d.GetPtr<uint32_t>(), nullptr);
 }
 
 TEST(object, data_view) {

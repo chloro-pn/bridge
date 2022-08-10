@@ -50,15 +50,9 @@ uint8_t parseDataType(const Inner& inner, size_t& offset) {
 
 inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_variant& data) {
   if (data_type == BRIDGE_BYTES || data_type == BRIDGE_CUSTOM) {
-    data.construct<std::vector<char>>();
-    std::vector<char>& tmp = data.get<std::vector<char>>();
-    tmp.resize(len);
-    memcpy(&tmp[0], ptr, len);
+    data.construct<std::vector<char>>(ptr, ptr + len);
   } else if (data_type == BRIDGE_STRING) {
-    data.construct<std::string>();
-    std::string& tmp = data.get<std::string>();
-    tmp.resize(len);
-    memcpy(&tmp[0], ptr, len);
+    data.construct<std::string>(ptr, len);
   }
   BRIDGE_PARSE(BRIDGE_INT32, int32_t)
   BRIDGE_PARSE(BRIDGE_UINT32, uint32_t)
