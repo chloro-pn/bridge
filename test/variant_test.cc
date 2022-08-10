@@ -77,9 +77,10 @@ TEST(variant, std_variant) {
 }
 
 TEST(variant, variant) {
-  variant<tmp, uint8_t, uint16_t, double, std::string> v;
+  using variant_type = variant<tmp, uint8_t, uint16_t, double, std::string>;
+  variant_type v;
   EXPECT_EQ(sizeof(v), std::max(sizeof(tmp), sizeof(std::string)));
-  EXPECT_EQ(alignof(v), alignof(double));
+  EXPECT_EQ(alignof(variant_type), alignof(double));
   v.construct<uint8_t>(23);
   auto value = v.get<uint8_t>();
   EXPECT_EQ(value, 23);
@@ -96,5 +97,5 @@ TEST(variant, variant) {
 
   variant<uint16_t, tmp> v2;
   EXPECT_EQ(sizeof(v2), sizeof(tmp));
-  EXPECT_EQ(alignof(v2), alignof(uint16_t));
+  EXPECT_EQ(alignof(variant<uint16_t, tmp>), alignof(uint16_t));
 }

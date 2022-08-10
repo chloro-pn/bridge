@@ -4,9 +4,11 @@
 #include <utility>
 #include <vector>
 
+#include "bridge/variant.h"
+
 namespace bridge {
 template <typename T, size_t capacity = 10240>
-struct alignas(alignof(T)) Block {
+struct alignas(MaxAlign<T, size_t>::value) Block {
  public:
   Block() : top_(0) {}
 

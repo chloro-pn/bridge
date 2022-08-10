@@ -1,5 +1,8 @@
 name: c++ CI
-on: push
+on: 
+  push:
+    branches:
+      - master
 
 jobs:
   bazel-and-test:
