@@ -64,9 +64,28 @@ TEST(object, data_str) {
 }
 
 TEST(object, data_view) {
-  std::string str("hello world");
-  DataView v{std::string_view(str)};
+  char ptr[] = "hello world";
+  DataView v(ptr);
   EXPECT_EQ(v.GetDataType(), BRIDGE_STRING);
+  EXPECT_EQ(v.GetStrView(), "hello world");
+  EXPECT_EQ(&v.Get<std::string_view>().value()[0], &ptr[0]);
+
+  std::string_view view("this is bridge");
+  v = view;
+  EXPECT_EQ(v.GetDataType(), BRIDGE_STRING);
+  EXPECT_EQ(v.GetStrView(), "this is bridge");
+
+  v = uint32_t(24);
+  EXPECT_EQ(v.GetDataType(), BRIDGE_UINT32);
+  EXPECT_EQ(v.Get<uint32_t>().value(), 24);
+
+  // 错误做法！ v = std::vector<char> { 0x00, 0x01, 0x02, 0x0A };
+  // todo: 编译期避免给DataView传递右值的string和vector<char>
+  std::vector<char> tmp{ 0x00, 0x01, 0x02, 0x0A };
+  v = tmp;
+  EXPECT_EQ(v.GetDataType(), BRIDGE_BYTES);
+  char buf[] = {0x00, 0x01, 0x02, 0x0A};
+  EXPECT_EQ(v.Get<std::string_view>().value(), std::string_view(&buf[0], 4));
 }
 
 TEST(object, array) {

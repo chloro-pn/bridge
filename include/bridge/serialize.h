@@ -16,8 +16,7 @@ inline void serialize(const char (&arr)[n], bridge_variant& container) {
   if (n > 0 && arr[n - 1] == '\0') {
     real_n = n - 1;
   }
-  std::string_view tmp(&arr[0], real_n);
-  container.construct<std::string>(tmp);
+  container.construct<std::string>(&arr[0], real_n);
 }
 
 template <size_t n>
@@ -26,8 +25,7 @@ inline void serialize(const char (&arr)[n], bridge_view_variant& container) {
   if (n > 0 && arr[n - 1] == '\0') {
     real_n = n - 1;
   }
-  std::string_view tmp(&arr[0], real_n);
-  container.construct<std::string_view>(tmp);
+  container.construct<std::string_view>(&arr[0], real_n);
 }
 
 inline void serialize(const std::string& obj, bridge_variant& container) { container.construct<std::string>(obj); }
@@ -48,14 +46,14 @@ inline void serialize(const std::vector<char>& obj, bridge_variant& container) {
   container.construct<std::vector<char>>(obj);
 }
 
+inline void serialize(std::vector<char>&& obj, bridge_variant& container) {
+  container.construct<std::vector<char>>(std::move(obj));
+}
+
 inline void serialize(const std::vector<char>& obj, bridge_view_variant& container) {
   const char* ptr = &obj[0];
   size_t size = obj.size();
   container.construct<std::string_view>(ptr, size);
-}
-
-inline void serialize(std::vector<char>&& obj, bridge_variant& container) {
-  container.construct<std::vector<char>>(std::move(obj));
 }
 
 template <typename T>

@@ -21,7 +21,10 @@ namespace bridge {
 #define BRIDGE_INVALID 0x0D
 
 template <typename T>
-struct InnerDataTypeTrait {
+struct InnerDataTypeTrait;
+
+template <typename T> requires bridge_custom_type<T>
+struct InnerDataTypeTrait<T> {
   static constexpr uint8_t dt = BRIDGE_CUSTOM;
 };
 

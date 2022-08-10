@@ -195,14 +195,14 @@ class DataView : public Object {
  public:
   DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID) {}
 
-  template <typename T>
+  template <bridge_data_type T>
   explicit DataView(const T& obj) : Object(ObjectType::Data, true) {
     data_type_ = DataTypeTrait<T>::dt;
     assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
     serialize(obj, variant_);
   }
 
-  explicit DataView(std::string_view obj) : Object(ObjectType::Data, true) {
+  explicit DataView(const std::string_view& obj) : Object(ObjectType::Data, true) {
     data_type_ = BRIDGE_STRING;
     serialize(obj, variant_);
   }
@@ -217,19 +217,29 @@ class DataView : public Object {
     return *this;
   }
 
+  DataView& operator=(const std::string_view& view) {
+    data_type_ = BRIDGE_STRING;
+    serialize(view, variant_);
+    return *this;
+  }
+
   uint8_t GetDataType() const { return data_type_; }
 
+  // 不支持Get<std::string>() 和 Get<std::vector<char>>()
+  // 请使用Get<std::string_view>()
   template <typename T>
-  requires bridge_integral<T> || bridge_floating<T> || std::same_as<T, std::string_view> std::optional<T> Get()
+  requires bridge_integral<T> || bridge_floating<T> std::optional<T> Get()
   const {
-    if constexpr (std::is_same_v<T, std::string_view>) {
-      return GetStrView();
-    }
     // 当处于不合法状态时，总是返回空的optional
     if (DataTypeTrait<T>::dt != data_type_) {
       return std::optional<T>();
     }
     return std::optional(variant_.get<T>());
+  }
+
+  template <typename T>
+  requires std::same_as<T, std::string_view> std::optional<T> Get() const {
+    return GetStrView();
   }
 
   std::optional<std::string_view> GetStrView() const {
