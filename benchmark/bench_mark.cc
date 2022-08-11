@@ -111,6 +111,7 @@ std::string benchmark_bridge() {
     array->Insert(std::move(map));
   }
   std::string ret = bridge::Serialize<seri_type>(std::move(array));
+  //bridge::ClearResource();
   return ret;
 }
 
@@ -126,10 +127,12 @@ const std::string& GetBridgeReplaceStr() {
 
 void bridge_parse() {
   auto root = bridge::Parse(GetBridgeStr(), true);
+  //bridge::ClearResource();
 }
 
 void bridge_parse_replace() {
   auto root = bridge::Parse(GetBridgeReplaceStr(), true);
+  //bridge::ClearResource();
 }
 
 static void BM_Bridge(benchmark::State& state) {

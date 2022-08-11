@@ -49,5 +49,6 @@ cc_test(
     ":bridge",
     "@googletest//:gtest",
     "@googletest//:gtest_main",
+    "@async_simple//:async-simple",
   ]
 )

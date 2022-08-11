@@ -1,0 +1,17 @@
+package(default_visibility = ["//visibility:public"])
+
+# no UTHREAD, no TEST
+cc_library(
+  name = "async-simple",
+  hdrs = glob(["async_simple/**/*.h"], ["async_simple/uthread/**/*.h"]),
+  srcs = glob(["async_simple/coro/*.cpp", "async_simple/executors/*.cpp"]),
+  includes = ["./"],
+  copts = [
+    "-DASYNC_SIMPLE_HAS_NOT_AIO",
+    "-D__STDC_LIMIT_MACROS",
+    "-D__FILE_OFFSET_BITS=64",
+  ],
+    linkopts = [
+    "-pthread",
+  ],
+)

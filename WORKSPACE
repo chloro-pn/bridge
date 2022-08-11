@@ -25,3 +25,10 @@ git_repository(
     remote = "https://github.com/google/benchmark",
     tag = "v1.7.0",
 )
+
+new_git_repository(
+    name = "async_simple",
+    remote = "https://github.com/alibaba/async_simple",
+    commit = "04885f0a59f9a848a67d43d6be2bb9ad2e32d739",
+    build_file = "//third_party:async_simple.build",
+)
