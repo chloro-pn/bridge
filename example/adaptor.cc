@@ -1,10 +1,11 @@
+#include "bridge/adaptor.h"
+
 #include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "bridge/object.h"
-#include "bridge/adaptor.h"
 
 using namespace bridge;
 

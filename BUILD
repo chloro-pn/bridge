@@ -37,6 +37,8 @@ cc_binary(
   deps = [
     ":bridge",
     "@rapid-json//:rapidjson",
+    "@benchmark//:benchmark",
+    "@benchmark//:benchmark_main",
   ],
 )
 

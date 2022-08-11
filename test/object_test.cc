@@ -81,7 +81,7 @@ TEST(object, data_view) {
 
   // 错误做法！ v = std::vector<char> { 0x00, 0x01, 0x02, 0x0A };
   // todo: 编译期避免给DataView传递右值的string和vector<char>
-  std::vector<char> tmp{ 0x00, 0x01, 0x02, 0x0A };
+  std::vector<char> tmp{0x00, 0x01, 0x02, 0x0A};
   v = tmp;
   EXPECT_EQ(v.GetDataType(), BRIDGE_BYTES);
   char buf[] = {0x00, 0x01, 0x02, 0x0A};

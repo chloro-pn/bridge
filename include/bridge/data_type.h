@@ -23,7 +23,8 @@ namespace bridge {
 template <typename T>
 struct InnerDataTypeTrait;
 
-template <typename T> requires bridge_custom_type<T>
+template <typename T>
+requires bridge_custom_type<T>
 struct InnerDataTypeTrait<T> {
   static constexpr uint8_t dt = BRIDGE_CUSTOM;
 };

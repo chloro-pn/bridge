@@ -238,9 +238,8 @@ class DataView : public Object {
   }
 
   template <typename T>
-  requires std::same_as<T, std::string_view> std::optional<T> Get() const {
-    return GetStrView();
-  }
+  requires std::same_as<T, std::string_view> std::optional<T> Get()
+  const { return GetStrView(); }
 
   std::optional<std::string_view> GetStrView() const {
     if (!(data_type_ == BRIDGE_STRING || data_type_ == BRIDGE_BYTES)) {

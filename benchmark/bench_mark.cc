@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "bridge/object.h"
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
@@ -11,32 +12,17 @@
 
 using namespace rapidjson;
 
-class Timer {
- public:
-  Timer() {}
-  void Start() { start_ = std::chrono::system_clock::now(); }
-
-  double End() {
-    auto end = std::chrono::system_clock::now();
-    auto use_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
-    return use_ms.count();
-  }
-
- private:
-  std::chrono::time_point<std::chrono::system_clock> start_;
-};
-
 std::vector<std::unordered_map<std::string, std::string>> initInfo() {
   std::vector<std::unordered_map<std::string, std::string>> ret;
   std::vector<std::string> key_set = {
-      "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
+      "{get_file_from_db}", "{update_timestamp}", "{post_to_db}", "{delete_by_timestamp}", "{custom_opration}",
   };
 
   std::vector<std::string> value_set = {
-      "Barbara", "Elizabeth", "Katharine", "Judy", "Doris", "Rudy", "Amanda",
+      "[Barbara]", "[Elizabeth]", "[Katharine]", "[Judy]", "[Doris]", "[Rudy]", "[Amanda]",
   };
 
-  for (int i = 0; i < 300000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
 
     tmp[key_set[i % key_set.size()]] = value_set[i % value_set.size()];
@@ -45,12 +31,14 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
   return ret;
 }
 
+static std::vector<std::unordered_map<std::string, std::string>> info = initInfo();
+
 std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   std::vector<std::unordered_map<std::string, uint64_t>> ret;
   std::vector<std::string> key_set = {
       "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
   };
-  for (int i = 0; i < 300000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     std::unordered_map<std::string, uint64_t> tmp;
 
     tmp[key_set[i % key_set.size()]] = i;
@@ -59,11 +47,9 @@ std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   return ret;
 }
 
-int main() {
-  Timer timer;
-  auto info = initInfo();
-  auto info2 = initInfo2();
-  timer.Start();
+static std::vector<std::unordered_map<std::string, uint64_t>> info2 = initInfo2();
+
+std::string benchmark_rapidjson() {
   Document d;
   d.SetArray();
   for (auto& each : info) {
@@ -88,16 +74,27 @@ int main() {
   Writer<StringBuffer> w(buf);
   d.Accept(w);
   const char* output = buf.GetString();
-  auto tmp = timer.End();
-  std::cout << "rapidjson use " << tmp << " ms, size = " << buf.GetSize() << std::endl;
   std::string new_buf(output, buf.GetSize());
-  timer.Start();
-  Document parsed;
-  parsed.ParseInsitu(&new_buf[0]);
-  tmp = timer.End();
-  std::cout << "rapidjson parse use " << tmp << " ms" << std::endl;
+  return new_buf;
+}
 
-  timer.Start();
+std::string rapidjson_str = benchmark_rapidjson();
+
+void rapidjson_parse() {
+  Document doc;
+  doc.Parse(&rapidjson_str[0], rapidjson_str.size());
+}
+
+static void BM_Rapidjson(benchmark::State& state) {
+  for (auto _ : state) benchmark_rapidjson();
+}
+
+static void BM_Rapidjson_Parse(benchmark::State& state) {
+  for (auto _ : state) rapidjson_parse();
+}
+
+template<bridge::SeriType type>
+std::string benchmark_bridge() {
   auto array = bridge::array();
   for (auto& each : info) {
     const std::string& key = each.begin()->first;
@@ -113,14 +110,42 @@ int main() {
     map->Insert(key, bridge::data(id));
     array->Insert(std::move(map));
   }
-  std::string ret = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(array));
-  bridge::ClearResource();
-  tmp = timer.End();
-  std::cout << "bridge use " << tmp << " ms, size = " << ret.size() << std::endl;
-  timer.Start();
-  auto root = bridge::Parse(ret, true);
-  bridge::ClearResource();
-  tmp = timer.End();
-  std::cout << "bridge parse use " << tmp << " ms" << std::endl;
-  return 0;
+  std::string ret = bridge::Serialize<type>(std::move(array));
+  return ret;
 }
+
+std::string bridge_str = benchmark_bridge<bridge::SeriType::NORMAL>();
+std::string bridge_replace_str = benchmark_bridge<bridge::SeriType::REPLACE>();
+
+void bridge_parse() {
+  auto root = bridge::Parse(bridge_str, true);
+}
+
+void bridge_parse_replace() {
+  auto root = bridge::Parse(bridge_replace_str, true);
+}
+
+static void BM_Bridge(benchmark::State& state) {
+  for (auto _ : state) benchmark_bridge<bridge::SeriType::NORMAL>();
+}
+
+static void BM_Bridge_Replace(benchmark::State& state) {
+  for (auto _ : state) benchmark_bridge<bridge::SeriType::REPLACE>();
+}
+
+static void BM_Bridge_Parse(benchmark::State& state) {
+  for (auto _ : state) bridge_parse();
+}
+
+static void BM_Bridge_Parse_Replace(benchmark::State& state) {
+  for (auto _ : state) bridge_parse_replace();
+}
+
+BENCHMARK(BM_Rapidjson);
+BENCHMARK(BM_Rapidjson_Parse);
+BENCHMARK(BM_Bridge);
+BENCHMARK(BM_Bridge_Parse);
+BENCHMARK(BM_Bridge_Parse_Replace);
+BENCHMARK(BM_Bridge_Replace);
+
+BENCHMARK_MAIN();

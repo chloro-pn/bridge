@@ -17,7 +17,7 @@ jobs:
       with:
         version: 11
     - name: build
-      run: bazel build "..."
+      run: bazel build --compilation_mode=opt "..."
     - name: test
       run: bazel test "..."
     - name: example

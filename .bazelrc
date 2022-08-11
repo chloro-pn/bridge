@@ -1,5 +1,4 @@
 build --cxxopt="-std=c++20"
-build --cxxopt="-O3"
 
 build:clang_config --crosstool_top=//toolchain:clang_suite
 # what's the meaning of k8?  https://stackoverflow.com/questions/59082595/what-dose-k8-mean-in-bazel-info-local-cpu-resources-output

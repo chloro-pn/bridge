@@ -19,3 +19,9 @@ new_git_repository(
     tag = "v1.1.0",
     build_file = "//third_party:rapidjson.build",
 )
+
+git_repository(
+    name = "benchmark",
+    remote = "https://github.com/google/benchmark",
+    tag = "v1.7.0",
+)
