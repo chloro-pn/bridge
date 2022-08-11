@@ -291,6 +291,7 @@ class DataView : public Object {
 
   void registerId(StringMap& map) const {
     if (data_type_ == BRIDGE_STRING) {
+      std::string_view view = variant_.get<std::string_view>();
       map.RegisterIdFromString(variant_.get<std::string_view>());
     }
   }

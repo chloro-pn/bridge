@@ -95,7 +95,7 @@ class alignas(MaxAlign<Ts...>::value) variant {
   variant() = default;
 
   template <typename T, typename... Args>
-  void construct(Args... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
+  void construct(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
     static_assert(ValidType<T>::value, "invalid type");
     new (buf_) T(std::forward<Args>(args)...);
   }

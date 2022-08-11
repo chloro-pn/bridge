@@ -23,4 +23,4 @@ jobs:
     - name: example
       run: bazel run //:example
     - name: benchmark
-      run: bazel run //:bench_mark
+      run: bazel run //:bench_mark --compilation_mode=opt

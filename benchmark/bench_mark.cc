@@ -19,10 +19,10 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
   };
 
   std::vector<std::string> value_set = {
-      "[Barbara]", "[Elizabeth]", "[Katharine]", "[Judy]", "[Doris]", "[Rudy]", "[Amanda]",
+      "Barbara", "Elizabeth", "Katharine", "Judy", "Doris", "Rudy", "Amanda",
   };
 
-  for (int i = 0; i < 1000; ++i) {
+  for (int i = 0; i < 300000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
 
     tmp[key_set[i % key_set.size()]] = value_set[i % value_set.size()];
@@ -38,7 +38,7 @@ std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   std::vector<std::string> key_set = {
       "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
   };
-  for (int i = 0; i < 1000; ++i) {
+  for (int i = 0; i < 300000; ++i) {
     std::unordered_map<std::string, uint64_t> tmp;
 
     tmp[key_set[i % key_set.size()]] = i;
@@ -93,7 +93,7 @@ static void BM_Rapidjson_Parse(benchmark::State& state) {
   for (auto _ : state) rapidjson_parse();
 }
 
-template<bridge::SeriType type>
+template<bridge::SeriType seri_type>
 std::string benchmark_bridge() {
   auto array = bridge::array();
   for (auto& each : info) {
@@ -110,19 +110,26 @@ std::string benchmark_bridge() {
     map->Insert(key, bridge::data(id));
     array->Insert(std::move(map));
   }
-  std::string ret = bridge::Serialize<type>(std::move(array));
+  std::string ret = bridge::Serialize<seri_type>(std::move(array));
   return ret;
 }
 
-std::string bridge_str = benchmark_bridge<bridge::SeriType::NORMAL>();
-std::string bridge_replace_str = benchmark_bridge<bridge::SeriType::REPLACE>();
+const std::string& GetBridgeStr() {
+  static std::string obj = benchmark_bridge<bridge::SeriType::NORMAL>();
+  return obj;
+}
+
+const std::string& GetBridgeReplaceStr() {
+  static std::string obj = benchmark_bridge<bridge::SeriType::REPLACE>();
+  return obj;
+}
 
 void bridge_parse() {
-  auto root = bridge::Parse(bridge_str, true);
+  auto root = bridge::Parse(GetBridgeStr(), true);
 }
 
 void bridge_parse_replace() {
-  auto root = bridge::Parse(bridge_replace_str, true);
+  auto root = bridge::Parse(GetBridgeReplaceStr(), true);
 }
 
 static void BM_Bridge(benchmark::State& state) {
