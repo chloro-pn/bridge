@@ -19,8 +19,8 @@ jobs:
     - name: build
       run: bazel build --compilation_mode=opt "..."
     - name: test
-      run: bazel test "..."
+      run: bazel test "..." --compilation_mode=opt
     - name: example
-      run: bazel run //:example
+      run: bazel run //:example --compilation_mode=opt
     - name: benchmark
-      run: bazel run //:bench_mark --compilation_mode=opt
+      run: ./bazel-bin/bench_mark --benchmark_time_unit=ms
