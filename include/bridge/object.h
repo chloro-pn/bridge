@@ -429,6 +429,8 @@ class Map : public Object {
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
+    // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
+    uint32_t splite_info_id = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
@@ -472,6 +474,13 @@ class Map : public Object {
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
+    uint32_t split_info_id = 0;
+    if (si != nullptr) {
+      split_info_id = si->RequestId();
+    }
+    seriLength(split_info_id, outer);
+    size_t current_size = outer.size();
+    std::vector<uint32_t> block_size;
     for (auto& each : objects_) {
       // key seri
       if (map == nullptr) {
@@ -484,6 +493,21 @@ class Map : public Object {
       }
       seriObjectType(each.second->GetType(), outer);
       each.second->valueSeri(outer, map, si);
+      if (si != nullptr) {
+        size_t tmp_size = outer.size();
+        // 每当子节点序列化大小超过4096字节，则生成一个分片
+        if (tmp_size - current_size >= 4096) {
+          block_size.push_back(tmp_size - current_size);
+          current_size = tmp_size;
+        }
+      }
+    }
+    // 最后一个分片，可能是0，是0的话忽略
+    if (si != nullptr && outer.size() - current_size > 0) {
+      block_size.push_back(outer.size() - current_size);
+    }
+    if (si != nullptr) {
+      si->RegisterSplitInfo(split_info_id, std::move(block_size));
     }
   }
 
@@ -520,6 +544,8 @@ class MapView : public Object {
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
+    // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
+    uint32_t splite_info_id = parseLength(inner, offset);
     if (inner.outOfRange()) {
       return;
     }
@@ -563,6 +589,13 @@ class MapView : public Object {
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
+    uint32_t split_info_id = 0;
+    if (si != nullptr) {
+      split_info_id = si->RequestId();
+    }
+    seriLength(split_info_id, outer);
+    size_t current_size = outer.size();
+    std::vector<uint32_t> block_size;
     for (auto& each : objects_) {
       // key seri
       if (map == nullptr) {
@@ -575,6 +608,21 @@ class MapView : public Object {
       }
       seriObjectType(each.second->GetType(), outer);
       each.second->valueSeri(outer, map, si);
+      if (si != nullptr) {
+        size_t tmp_size = outer.size();
+        // 每当子节点序列化大小超过4096字节，则生成一个分片
+        if (tmp_size - current_size >= 4096) {
+          block_size.push_back(tmp_size - current_size);
+          current_size = tmp_size;
+        }
+      }
+    }
+    // 最后一个分片，可能是0，是0的话忽略
+    if (si != nullptr && outer.size() - current_size > 0) {
+      block_size.push_back(outer.size() - current_size);
+    }
+    if (si != nullptr) {
+      si->RegisterSplitInfo(split_info_id, std::move(block_size));
     }
   }
 
