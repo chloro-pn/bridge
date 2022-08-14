@@ -147,6 +147,13 @@ concept bridge_outer_concept = requires(T& outer, char c, std::string s, const c
   {outer.push_back(c)};
   {outer.append(s)};
   {outer.append(ptr, len)};
+  { outer.size() } -> std::same_as<size_t>;
+};
+
+template <typename T>
+concept bridge_secondary_struct = requires(const T& obj, std::string_view view) {
+  { obj.Serialize() } -> std::same_as<std::string>;
+  { T::Construct(view) } -> std::same_as<T>;
 };
 
 };  // namespace bridge

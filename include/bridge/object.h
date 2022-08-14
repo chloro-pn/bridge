@@ -14,6 +14,7 @@
 #include "bridge/object_type.h"
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
+#include "bridge/split_info.h"
 #include "bridge/string_map.h"
 #include "bridge/type_trait.h"
 #include "bridge/variant.h"
@@ -38,9 +39,7 @@ class Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const;
-
-  void registerId(StringMap& map) const;
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const;
 
   void dump(std::string& buf, int level) const;
 
@@ -151,23 +150,16 @@ class Data : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
       std::string_view view(variant_.get<std::string>());
-      uint32_t id = map->GetId(view);
+      uint32_t id = map->RegisterIdFromString(view);
       seriLength(id, outer);
       return;
     }
     seriData(data_type_, variant_, outer);
-  }
-
-  void registerId(StringMap& map) const {
-    if (data_type_ == BRIDGE_STRING) {
-      std::string_view view(variant_.get<std::string>());
-      map.RegisterIdFromString(view);
-    }
   }
 
   void dump(std::string& buf, int level) const {
@@ -278,22 +270,15 @@ class DataView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
-      uint32_t id = map->GetId(variant_.get<std::string_view>());
+      uint32_t id = map->RegisterIdFromString(variant_.get<std::string_view>());
       seriLength(id, outer);
       return;
     }
     seriData(data_type_, variant_, outer);
-  }
-
-  void registerId(StringMap& map) const {
-    if (data_type_ == BRIDGE_STRING) {
-      std::string_view view = variant_.get<std::string_view>();
-      map.RegisterIdFromString(variant_.get<std::string_view>());
-    }
   }
 
   void dump(std::string& buf, int level) const {
@@ -333,6 +318,8 @@ class Array : public Object {
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     objects_.clear();
     uint64_t count = parseLength(inner, offset);
+    // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
+    uint32_t splite_info_id = parseLength(inner, offset);
     for (uint64_t i = 0; i < count; ++i) {
       ObjectType type = parseObjectType(inner, offset);
       if (inner.outOfRange()) {
@@ -349,18 +336,34 @@ class Array : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
+    uint32_t split_info_id = 0;
+    if (si != nullptr) {
+      split_info_id = si->RequestId();
+    }
+    seriLength(split_info_id, outer);
+    size_t current_size = outer.size();
+    std::vector<uint32_t> block_size;
     for (auto& each : objects_) {
       seriObjectType(each->GetType(), outer);
-      each->valueSeri(outer, map);
+      each->valueSeri(outer, map, si);
+      if (si != nullptr) {
+        size_t tmp_size = outer.size();
+        // 每当子节点序列化大小超过4096字节，则生成一个分片
+        if (tmp_size - current_size >= 4096) {
+          block_size.push_back(tmp_size - current_size);
+          current_size = tmp_size;
+        }
+      }
     }
-  }
-
-  void registerId(StringMap& map) const {
-    for (auto& each : objects_) {
-      each->registerId(map);
+    // 最后一个分片，可能是0，是0的话忽略
+    if (si != nullptr && outer.size() - current_size > 0) {
+      block_size.push_back(outer.size() - current_size);
+    }
+    if (si != nullptr) {
+      si->RegisterSplitInfo(split_info_id, std::move(block_size));
     }
   }
 
@@ -466,7 +469,7 @@ class Map : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
@@ -476,18 +479,11 @@ class Map : public Object {
         seriLength(key_length, outer);
         outer.append(each.first);
       } else {
-        uint32_t id = map->GetId(each.first);
+        uint32_t id = map->RegisterIdFromString(each.first);
         seriLength(id, outer);
       }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer, map);
-    }
-  }
-
-  void registerId(StringMap& map) const {
-    for (auto& each : objects_) {
-      map.RegisterIdFromString(each.first);
-      each.second->registerId(map);
+      each.second->valueSeri(outer, map, si);
     }
   }
 
@@ -564,7 +560,7 @@ class MapView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, const StringMap* map) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     for (auto& each : objects_) {
@@ -574,18 +570,11 @@ class MapView : public Object {
         seriLength(key_length, outer);
         outer.append(&each.first[0], each.first.size());
       } else {
-        uint32_t id = map->GetId(each.first);
+        uint32_t id = map->RegisterIdFromString(each.first);
         seriLength(id, outer);
       }
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer, map);
-    }
-  }
-
-  void registerId(StringMap& map) const {
-    for (auto& each : objects_) {
-      map.RegisterIdFromString(each.first);
-      each.second->registerId(map);
+      each.second->valueSeri(outer, map, si);
     }
   }
 
@@ -648,9 +637,9 @@ void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref, cons
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
-void Object::valueSeri(Outer& outer, const StringMap* map) const { BRIDGE_DISPATCH(valueSeri, const, outer, map) }
-
-inline void Object::registerId(StringMap& map) const { BRIDGE_DISPATCH(registerId, const, map) }
+void Object::valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  BRIDGE_DISPATCH(valueSeri, const, outer, map, si)
+}
 
 inline void Object::dump(std::string& buf, int level) const { BRIDGE_DISPATCH(dump, const, buf, level) }
 
@@ -914,28 +903,74 @@ enum class SeriType : char {
 
 constexpr inline char SeriTypeToChar(SeriType st) { return static_cast<char>(st); }
 
+inline void SeriTotalSizeToOuter(uint64_t total_size, std::string& outer) {
+  assert(outer.size() >= sizeof(uint64_t));
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
+    total_size = flipByByte(total_size);
+  }
+  *reinterpret_cast<uint64_t*>(&outer[0]) = total_size;
+}
+
+inline uint64_t ParseTotalSize(const std::string& inner) {
+  assert(inner.size() >= sizeof(uint64_t));
+  uint64_t total_size = *reinterpret_cast<const uint64_t*>(&inner[0]);
+  if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
+    total_size = flipByByte(total_size);
+  }
+  return total_size;
+}
+
+template <typename T>
+requires bridge_secondary_struct<T>
+inline void SuffixSecondary(std::string& content, const T& secondary) {
+  // 将string_map信息后缀在序列化数据后面
+  auto secondary_str = secondary.Serialize();
+  seriLength(secondary_str.size(), content);
+  content.append(secondary_str);
+}
+
+template <typename T>
+requires bridge_secondary_struct<T>
+inline T ParseSecondary(const std::string& content, size_t& total_size) {
+  char skip = 0;
+  size_t secondary_size = parseLength(content, total_size, skip);
+  std::string_view secondary_str(&content[total_size + skip], secondary_size);
+  T ss = T::Construct(secondary_str);
+  total_size = total_size + skip + secondary_size;
+  return ss;
+}
+
 inline std::string SerializeNormal(unique_ptr<Object>&& obj) {
+  SplitInfo sp_info;
   Map root;
   root.Insert("root", std::move(obj));
   std::string ret;
   ret.reserve(1024);
+  ret.resize(sizeof(uint64_t));
   ret.push_back(SeriTypeToChar(SeriType::NORMAL));
-  root.valueSeri(ret, nullptr);
+  root.valueSeri(ret, nullptr, &sp_info);
+  size_t total_size = ret.size();
+  SeriTotalSizeToOuter(total_size, ret);
+  SuffixSecondary(ret, sp_info);
   return ret;
 }
 
 inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
   Map root;
   StringMap string_map;
+  SplitInfo sp_info;
   root.Insert("root", std::move(obj));
-  root.registerId(string_map);
   std::string ret;
   ret.reserve(1024);
+  // 首部8个字节存储不包含辅助结构的总大小，这里先占位
+  ret.resize(sizeof(uint64_t));
   ret.push_back(SeriTypeToChar(SeriType::REPLACE));
-  auto string_map_str = string_map.Serialize();
-  seriLength(string_map_str.size(), ret);
-  ret.append(string_map_str);
-  root.valueSeri(ret, &string_map);
+  root.valueSeri(ret, &string_map, &sp_info);
+  size_t total_size = ret.size();
+  SeriTotalSizeToOuter(total_size, ret);
+  // 将string_map信息后缀在序列化数据后面
+  SuffixSecondary(ret, string_map);
+  SuffixSecondary(ret, sp_info);
   return ret;
 }
 
@@ -952,10 +987,13 @@ inline unique_ptr<Object> Parse(const std::string& content, bool parse_ref = fal
   if (content.empty() == true) {
     return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
-  char c = content[0];
+  size_t meta_size = sizeof(uint64_t) + sizeof(char);
+  assert(content.size() >= meta_size);
+  uint64_t total_size = ParseTotalSize(content);
+  char c = content[sizeof(uint64_t)];
   InnerWrapper wrapper(content);
-  wrapper.skip(1);
-  size_t offset = 1;
+  wrapper.skip(meta_size);
+  size_t offset = meta_size;
   unique_ptr<Object> root(nullptr, object_pool_deleter);
   if (parse_ref == false) {
     root = ValueFactory<Map>();
@@ -963,19 +1001,20 @@ inline unique_ptr<Object> Parse(const std::string& content, bool parse_ref = fal
     root = ValueFactory<MapView>();
   }
   if (c == SeriTypeToChar(SeriType::NORMAL)) {
+    uint64_t tmp_total_size = total_size;
+    SplitInfo si = ParseSecondary<SplitInfo>(content, tmp_total_size);
+    // do nothing up to now
     root->valueParse(wrapper, offset, parse_ref, nullptr);
-    if (wrapper.outOfRange() || offset != content.size()) {
+    if (wrapper.outOfRange() || offset != total_size) {
       return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
   } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
-    size_t length = parseLength(wrapper, offset);
-    std::string_view string_map_str(wrapper.curAddr(), length);
-    wrapper.skip(length);
-    offset += length;
-
-    StringMap sm = StringMap::Construct(string_map_str);
+    // ParseSecondary会改变total_size，因此申请一个临时值
+    uint64_t tmp_total_size = total_size;
+    StringMap sm = ParseSecondary<StringMap>(content, tmp_total_size);
+    SplitInfo si = ParseSecondary<SplitInfo>(content, tmp_total_size);
     root->valueParse(wrapper, offset, parse_ref, &sm);
-    if (wrapper.outOfRange() || offset != content.size()) {
+    if (wrapper.outOfRange() || offset != total_size) {
       return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
   } else {

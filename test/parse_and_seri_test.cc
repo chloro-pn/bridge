@@ -8,7 +8,7 @@
 #include "gtest/gtest.h"
 using namespace bridge;
 
-TEST(parse_and_seri, string_map) {
+TEST(parse_and_seri, replace) {
   std::vector<int32_t> ints{1, 2, 4, 3};
   std::vector<int32_t> int2{4, 5, 6, 7};
   std::unordered_map<std::string, std::vector<int32_t>> maps;

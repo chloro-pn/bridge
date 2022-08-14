@@ -29,6 +29,14 @@ uint64_t parseLength(const Inner& inner, size_t& offset) {
   return tmp;
 }
 
+inline uint64_t parseLength(const std::string& inner, size_t offset, char& skip) {
+  unsigned long long tmp;
+  unsigned char bytes;
+  tmp = varint_decode(&inner[offset], inner.size() - offset, &bytes);
+  skip = bytes;
+  return tmp;
+}
+
 template <typename Inner>
 uint8_t parseDataType(const Inner& inner, size_t& offset) {
   uint8_t tmp = static_cast<uint8_t>(*inner.curAddr());

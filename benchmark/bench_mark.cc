@@ -93,7 +93,7 @@ static void BM_Rapidjson_Parse(benchmark::State& state) {
   for (auto _ : state) rapidjson_parse();
 }
 
-template<bridge::SeriType seri_type>
+template <bridge::SeriType seri_type>
 std::string benchmark_bridge() {
   auto array = bridge::array();
   for (auto& each : info) {
@@ -111,7 +111,7 @@ std::string benchmark_bridge() {
     array->Insert(std::move(map));
   }
   std::string ret = bridge::Serialize<seri_type>(std::move(array));
-  //bridge::ClearResource();
+  // bridge::ClearResource();
   return ret;
 }
 
@@ -127,12 +127,12 @@ const std::string& GetBridgeReplaceStr() {
 
 void bridge_parse() {
   auto root = bridge::Parse(GetBridgeStr(), true);
-  //bridge::ClearResource();
+  // bridge::ClearResource();
 }
 
 void bridge_parse_replace() {
   auto root = bridge::Parse(GetBridgeReplaceStr(), true);
-  //bridge::ClearResource();
+  // bridge::ClearResource();
 }
 
 static void BM_Bridge(benchmark::State& state) {

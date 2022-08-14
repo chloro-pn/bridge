@@ -20,19 +20,15 @@ class StringMap {
  public:
   StringMap() : next_id_(0) {}
 
-  void RegisterIdFromString(std::string_view str) {
+  uint32_t RegisterIdFromString(std::string_view str) {
     auto it = map_.find(str);
     if (it != map_.end()) {
-      return;
+      return it->second;
     }
     map_[str] = next_id_;
+    uint32_t ret = next_id_;
     next_id_ += 1;
-  }
-
-  uint32_t GetId(std::string_view str) const {
-    auto it = map_.find(str);
-    assert(it != map_.end());
-    return it->second;
+    return ret;
   }
 
   std::string_view GetStr(uint32_t id) const {
