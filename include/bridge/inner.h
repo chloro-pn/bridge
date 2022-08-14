@@ -20,6 +20,8 @@ class InnerWrapper {
 
   void skip(size_t k) const { current_index_ += k; }
 
+  size_t currentIndex() const { return current_index_; }
+
   bool outOfRange() const { return current_index_ > str_.size(); }
 
  private:
