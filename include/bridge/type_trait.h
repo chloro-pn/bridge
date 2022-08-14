@@ -140,6 +140,7 @@ concept bridge_inner_concept = requires(const T& inner, size_t n) {
   {inner.skip(n)};
   { inner.remain() } -> std::same_as<size_t>;
   { inner.outOfRange() } -> std::same_as<bool>;
+  { inner.currentIndex() } -> std::same_as<size_t>;
 };
 
 template <typename T>

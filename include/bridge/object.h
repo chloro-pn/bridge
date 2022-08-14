@@ -971,7 +971,7 @@ inline uint64_t ParseTotalSize(const std::string& inner) {
 template <typename T>
 requires bridge_secondary_struct<T>
 inline void SuffixSecondary(std::string& content, const T& secondary) {
-  // 将string_map信息后缀在序列化数据后面
+  // 将secondary信息后缀在序列化数据后面
   auto secondary_str = secondary.Serialize();
   seriLength(secondary_str.size(), content);
   content.append(secondary_str);

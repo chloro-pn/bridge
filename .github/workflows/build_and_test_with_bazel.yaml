@@ -1,4 +1,4 @@
-name: c++ CI
+name: build_test_benchmark
 on: 
   push:
     branches:
