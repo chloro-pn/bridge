@@ -1,5 +1,7 @@
 #include "async_simple/coro/Lazy.h"
 #include "async_simple/coro/SyncAwait.h"
+#include "async_simple/executors/SimpleExecutor.h"
+
 #include "bridge/async_executor/task.h"
 #include "gtest/gtest.h"
 
@@ -14,6 +16,7 @@ TEST(async_simple, basic) {
 }
 
 TEST(async_simple, task) {
+  async_simple::executors::SimpleExecutor e(4);
   SplitInfo si;
   StringMap sm;
   Map arr;
@@ -31,7 +34,8 @@ TEST(async_simple, task) {
 
   std::string ret;
   arr.valueSeri(ret, &sm, &si);
-  auto new_arr = syncAwait(ParseMap(ret, si, &sm, 0, true));
+  async_simple::coro::RescheduleLazy Scheduled = ParseMap(ret, si, &sm, 0, true).via(&e);
+  auto new_arr = syncAwait(Scheduled);
   ObjectWrapper w(new_arr.v.get());
   EXPECT_EQ(w.GetType(), ObjectType::Map);
   EXPECT_EQ(w.Size(), 2);

@@ -50,5 +50,8 @@ cc_test(
     "@googletest//:gtest",
     "@googletest//:gtest_main",
     "@async_simple//:async-simple",
+  ],
+  copts = [
+    "-DASYNC_SIMPLE_HAS_NOT_AIO",
   ]
 )
