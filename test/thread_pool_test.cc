@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 
 TEST(executor, thread_pool) {
-  birdge::ThreadPool pool(4);
+  auto& pool = bridge::ThreadPool::GetOrConstructInstance(4);
   std::atomic<int> count(0);
   for (int i = 0; i < 100000; ++i) {
     pool.PushTask([&]() { count.fetch_add(1); });

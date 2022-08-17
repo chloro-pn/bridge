@@ -1,6 +1,6 @@
 #include "async_simple/coro/Lazy.h"
 #include "async_simple/coro/SyncAwait.h"
-#include "async_simple/executors/SimpleExecutor.h"
+#include "bridge/async_executor/executor.h"
 #include "bridge/async_executor/task.h"
 #include "gtest/gtest.h"
 
@@ -15,7 +15,8 @@ TEST(async_simple, basic) {
 }
 
 TEST(async_simple, task) {
-  async_simple::executors::SimpleExecutor e(4);
+  bridge::BridgeExecutor e(4);
+  EXPECT_EQ(e.name(), "bridge_simple_threadpool");
   SplitInfo si;
   StringMap sm;
   Map arr;
