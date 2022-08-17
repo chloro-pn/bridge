@@ -1,0 +1,62 @@
+benchmark/bench_mark.cc:88:44: style: Parameter 'state' can be declared with const. However it seems that 'BM_Rapidjson' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Rapidjson(benchmark::State& state) {
+                                           ^
+benchmark/bench_mark.cc:154:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Rapidjson);
+          ^
+benchmark/bench_mark.cc:88:44: note: Parameter 'state' can be declared with const
+static void BM_Rapidjson(benchmark::State& state) {
+                                           ^
+benchmark/bench_mark.cc:92:50: style: Parameter 'state' can be declared with const. However it seems that 'BM_Rapidjson_Parse' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Rapidjson_Parse(benchmark::State& state) {
+                                                 ^
+benchmark/bench_mark.cc:155:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Rapidjson_Parse);
+          ^
+benchmark/bench_mark.cc:92:50: note: Parameter 'state' can be declared with const
+static void BM_Rapidjson_Parse(benchmark::State& state) {
+                                                 ^
+benchmark/bench_mark.cc:138:41: style: Parameter 'state' can be declared with const. However it seems that 'BM_Bridge' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Bridge(benchmark::State& state) {
+                                        ^
+benchmark/bench_mark.cc:156:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Bridge);
+          ^
+benchmark/bench_mark.cc:138:41: note: Parameter 'state' can be declared with const
+static void BM_Bridge(benchmark::State& state) {
+                                        ^
+benchmark/bench_mark.cc:142:49: style: Parameter 'state' can be declared with const. However it seems that 'BM_Bridge_Replace' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Bridge_Replace(benchmark::State& state) {
+                                                ^
+benchmark/bench_mark.cc:159:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Bridge_Replace);
+          ^
+benchmark/bench_mark.cc:142:49: note: Parameter 'state' can be declared with const
+static void BM_Bridge_Replace(benchmark::State& state) {
+                                                ^
+benchmark/bench_mark.cc:146:47: style: Parameter 'state' can be declared with const. However it seems that 'BM_Bridge_Parse' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Bridge_Parse(benchmark::State& state) {
+                                              ^
+benchmark/bench_mark.cc:157:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Bridge_Parse);
+          ^
+benchmark/bench_mark.cc:146:47: note: Parameter 'state' can be declared with const
+static void BM_Bridge_Parse(benchmark::State& state) {
+                                              ^
+benchmark/bench_mark.cc:150:55: style: Parameter 'state' can be declared with const. However it seems that 'BM_Bridge_Parse_Replace' is a callback function, if 'state' is declared with const you might also need to cast function pointer(s). [constParameterCallback]
+static void BM_Bridge_Parse_Replace(benchmark::State& state) {
+                                                      ^
+benchmark/bench_mark.cc:158:11: note: You might need to cast the function pointer here
+BENCHMARK(BM_Bridge_Parse_Replace);
+          ^
+benchmark/bench_mark.cc:150:55: note: Parameter 'state' can be declared with const
+static void BM_Bridge_Parse_Replace(benchmark::State& state) {
+                                                      ^
+benchmark/bench_mark.cc:129:13: style: Variable 'root' is assigned a value that is never used. [unreadVariable]
+  auto root = bridge::Parse(GetBridgeStr(), true);
+            ^
+benchmark/bench_mark.cc:134:13: style: Variable 'root' is assigned a value that is never used. [unreadVariable]
+  auto root = bridge::Parse(GetBridgeReplaceStr(), true);
+            ^
+nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingInclude]
+
