@@ -28,6 +28,7 @@ jobs:
       uses: deep5050/cppcheck-action@main
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        exclude_check: ./test
     - name: publish_report
       uses: mikeal/publish-to-github-action@master
       env:
