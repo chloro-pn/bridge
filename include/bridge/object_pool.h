@@ -7,7 +7,7 @@
 #include "bridge/variant.h"
 
 namespace bridge {
-template <typename T, size_t capacity = 10240>
+template <typename T, size_t capacity = 102400>
 struct alignas(MaxAlign<T, size_t>::value) Block {
  public:
   Block() : top_(0) {}
@@ -39,6 +39,7 @@ struct alignas(MaxAlign<T, size_t>::value) Block {
 
 /*
  * 对象池，使用场景：短时间内申请大量T类型对象，结束后批量释放
+ * todo: 由于多线程解析器的引入，对象池的申请和释放操作需要是线程安全的，目前暂且改成thread_local，后续重构
  */
 template <typename T>
 class ObjectPool {
@@ -58,7 +59,7 @@ class ObjectPool {
   }
 
   static ObjectPool& Instance() {
-    static ObjectPool obj;
+    static thread_local ObjectPool obj;
     return obj;
   }
 

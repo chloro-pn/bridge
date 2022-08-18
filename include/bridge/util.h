@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 
 #include "bridge/type_trait.h"
@@ -38,5 +39,26 @@ inline T flipByByte(T t) {
   }
   return ret;
 }
+
+inline int GetCurrentMs() {
+  auto duration = std::chrono::system_clock::now().time_since_epoch();
+  auto dd = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+  return dd.count() % 1000;
+}
+
+class Timer {
+ public:
+  Timer() {}
+  void Start() { start_ = std::chrono::system_clock::now(); }
+
+  double End() {
+    auto end = std::chrono::system_clock::now();
+    auto use_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
+    return use_ms.count();
+  }
+
+ private:
+  std::chrono::time_point<std::chrono::system_clock> start_;
+};
 
 }  // namespace bridge

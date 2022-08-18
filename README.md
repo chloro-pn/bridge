@@ -42,7 +42,7 @@ int main() {
   auto v = adaptor(id_map);
   std::string buf = Serialize<SeriType::NORMAL>(std::move(v));
   // ...
-  auto root = Parse(buf, false);
+  auto root = Parse(buf);
   ObjectWrapper w(root.get());
   auto it = w.GetIteraotr().value();
   for (; it.Valid(); ++it) {

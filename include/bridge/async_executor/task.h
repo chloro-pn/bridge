@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 #include <vector>
 
 #include "async_simple/coro/Collect.h"
@@ -7,25 +8,11 @@
 #include "bridge/object.h"
 #include "bridge/split_info.h"
 #include "bridge/string_map.h"
+#include "bridge/util.h"
 
 namespace bridge {
 
 using namespace async_simple::coro;
-
-size_t GetBlockSize(const std::string& content, ObjectType type, size_t begin, const SplitInfo& si) {
-  if (type == ObjectType::Data) {
-    return 0;
-  }
-  InnerWrapper w(content);
-  w.skip(begin);
-  size_t offset = begin;
-  parseLength(w, offset);
-  uint32_t id = parseLength(w, offset);
-  if (id == 0) {
-    return 0;
-  }
-  return si.GetBlockInfoFromId(id).size();
-}
 
 struct ParseResult {
   size_t offset;
@@ -33,24 +20,27 @@ struct ParseResult {
   ParseResult(size_t os, unique_ptr<Object>&& obj) : offset(os), v(std::move(obj)) {}
 };
 
-Lazy<ParseResult> ParseArray(const std::string& content, const SplitInfo& si, const StringMap* sm, size_t os,
-                             bool parse_ref);
+inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
+                                    bool parse_ref);
 
-Lazy<ParseResult> ParseMap(const std::string& content, const SplitInfo& si, const StringMap* sm, size_t os,
-                           bool parse_ref);
+inline Lazy<ParseResult> ParseMap(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
+                                  bool parse_ref);
 
-Lazy<std::vector<unique_ptr<Object>>> ParseArrayBlock(const std::string& content, size_t begin, size_t end,
-                                                      const SplitInfo& si, bool parse_ref, const StringMap* sm) {
+inline Lazy<std::vector<unique_ptr<Object>>> ParseArrayBlock(std::string_view content, size_t begin, size_t end,
+                                                             const SplitInfo& si, bool parse_ref, const StringMap* sm) {
   std::vector<unique_ptr<Object>> ret;
+  ret.reserve(1024);
   InnerWrapper w(content);
   w.skip(begin);
   size_t offset = begin;
+  size_t count = 0;
   while (offset < end) {
-    ObjectType type = parseObjectType(w, offset);
-    // 这个函数是用来检测即将解析的对象是否需要并行解析，如果是Data类型
-    // 或者只有一个分块信息的Map和Array类型，本地解析
-    if (GetBlockSize(content, type, w.currentIndex(), si) <= 1) {
-      auto v = ObjectFactory(type);
+    ++count;
+    bool need_to_split = false;
+    ObjectType type = parseObjectType(w, offset, need_to_split);
+    // 这个函数是用来检测即将解析的对象是否需要并行解析
+    if (!need_to_split) {
+      auto v = ObjectFactory(type, parse_ref);
       v->valueParse(w, offset, parse_ref, sm);
       ret.push_back(std::move(v));
     } else {
@@ -72,8 +62,8 @@ Lazy<std::vector<unique_ptr<Object>>> ParseArrayBlock(const std::string& content
 }
 
 // @brief: 从content[os]处开始解析一个array，不包含ObjectType。
-Lazy<ParseResult> ParseArray(const std::string& content, const SplitInfo& si, const StringMap* sm, size_t os,
-                             bool parse_ref) {
+inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
+                                    bool parse_ref) {
   InnerWrapper w(content);
   w.skip(os);
   size_t offset = os;
@@ -91,20 +81,22 @@ Lazy<ParseResult> ParseArray(const std::string& content, const SplitInfo& si, co
   }
   // 通过实现多线程Executor，使以下协程在多个线程并行调度
   // 注: 协程只需要只读信息，不需要消息交互，因此是非常适合并行的
-  auto objs = co_await collectAll(std::move(tasks));
+  auto objs = co_await collectAllPara(std::move(tasks));
   unique_ptr<Array> ret = array();
   for (auto& eachresult : objs) {
-    for (auto& eachobj : eachresult.value()) {
-      ret->Insert(std::move(eachobj));
-    }
+    auto begin = std::make_move_iterator(eachresult.value().begin());
+    auto end = std::make_move_iterator(eachresult.value().end());
+    ret->Insert(begin, end);
   }
   co_return ParseResult(begin, std::move(ret));
 }
 
-Lazy<std::vector<std::pair<std::string, unique_ptr<Object>>>> ParseMapBlock(const std::string& content, size_t begin,
-                                                                            size_t end, const SplitInfo& si,
-                                                                            const StringMap* sm) {
+inline Lazy<std::vector<std::pair<std::string, unique_ptr<Object>>>> ParseMapBlock(std::string_view content,
+                                                                                   size_t begin, size_t end,
+                                                                                   const SplitInfo& si,
+                                                                                   const StringMap* sm) {
   std::vector<std::pair<std::string, unique_ptr<Object>>> ret;
+  ret.reserve(1024);
   InnerWrapper w(content);
   w.skip(begin);
   size_t offset = begin;
@@ -119,9 +111,10 @@ Lazy<std::vector<std::pair<std::string, unique_ptr<Object>>>> ParseMapBlock(cons
       uint32_t id = parseLength(w, offset);
       key = sm->GetStr(id);
     }
-    ObjectType type = parseObjectType(w, offset);
-    if (GetBlockSize(content, type, w.currentIndex(), si) <= 1) {
-      auto v = ObjectFactory(type);
+    bool need_to_split = false;
+    ObjectType type = parseObjectType(w, offset, need_to_split);
+    if (!need_to_split) {
+      auto v = ObjectFactory(type, false);
       v->valueParse(w, offset, false, sm);
       ret.push_back({std::move(key), std::move(v)});
     } else {
@@ -142,11 +135,12 @@ Lazy<std::vector<std::pair<std::string, unique_ptr<Object>>>> ParseMapBlock(cons
   co_return ret;
 }
 
-Lazy<std::vector<std::pair<std::string_view, unique_ptr<Object>>>> ParseMapViewBlock(const std::string& content,
-                                                                                     size_t begin, size_t end,
-                                                                                     const SplitInfo& si,
-                                                                                     const StringMap* sm) {
+inline Lazy<std::vector<std::pair<std::string_view, unique_ptr<Object>>>> ParseMapViewBlock(std::string_view content,
+                                                                                            size_t begin, size_t end,
+                                                                                            const SplitInfo& si,
+                                                                                            const StringMap* sm) {
   std::vector<std::pair<std::string_view, unique_ptr<Object>>> ret;
+  ret.reserve(1024);
   InnerWrapper w(content);
   w.skip(begin);
   size_t offset = begin;
@@ -161,9 +155,10 @@ Lazy<std::vector<std::pair<std::string_view, unique_ptr<Object>>>> ParseMapViewB
       uint32_t id = parseLength(w, offset);
       key = sm->GetStr(id);
     }
-    ObjectType type = parseObjectType(w, offset);
-    if (GetBlockSize(content, type, w.currentIndex(), si) <= 1) {
-      auto v = ObjectFactory(type);
+    bool need_to_split = false;
+    ObjectType type = parseObjectType(w, offset, need_to_split);
+    if (!need_to_split) {
+      auto v = ObjectFactory(type, true);
       v->valueParse(w, offset, true, sm);
       ret.push_back({std::move(key), std::move(v)});
     } else {
@@ -184,14 +179,14 @@ Lazy<std::vector<std::pair<std::string_view, unique_ptr<Object>>>> ParseMapViewB
   co_return ret;
 }
 
-Lazy<ParseResult> ParseMap(const std::string& content, const SplitInfo& si, const StringMap* sm, size_t os,
-                           bool parse_ref) {
+inline Lazy<ParseResult> ParseMap(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
+                                  bool parse_ref) {
   InnerWrapper w(content);
   w.skip(os);
   size_t offset = os;
   uint64_t count = parseLength(w, offset);
   uint32_t split_id = parseLength(w, offset);
-  const auto& block_info = si.GetBlockInfoFromId(split_id);
+  auto block_info = si.GetBlockInfoFromId(split_id);
   size_t begin = w.currentIndex();
 
   if (parse_ref == false) {
@@ -203,7 +198,8 @@ Lazy<ParseResult> ParseMap(const std::string& content, const SplitInfo& si, cons
       tasks.push_back(std::move(task));
       begin = end;
     }
-    auto objs = co_await collectAll(std::move(tasks));
+    auto objs = co_await collectAllPara(std::move(tasks));
+
     for (auto& each_task : objs) {
       for (auto& each_kv : each_task.value()) {
         ret->Insert(each_kv.first, std::move(each_kv.second));
@@ -219,7 +215,7 @@ Lazy<ParseResult> ParseMap(const std::string& content, const SplitInfo& si, cons
       tasks.push_back(std::move(task));
       begin = end;
     }
-    auto objs = co_await collectAll(std::move(tasks));
+    auto objs = co_await collectAllPara(std::move(tasks));
     for (auto& each_task : objs) {
       for (auto& each_kv : each_task.value()) {
         ret->Insert(each_kv.first, std::move(each_kv.second));

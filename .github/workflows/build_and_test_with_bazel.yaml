@@ -24,6 +24,8 @@ jobs:
       run: bazel run //:example --compilation_mode=opt
     - name: benchmark
       run: ./bazel-bin/bench_mark --benchmark_time_unit=ms
+    - name: coroutine
+      run: bazel run //:scheduler --compilation_mode=opt
     - name: cppcheck
       uses: deep5050/cppcheck-action@main
       with:

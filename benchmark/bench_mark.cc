@@ -22,10 +22,26 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
       "Barbara", "Elizabeth", "Katharine", "Judy", "Doris", "Rudy", "Amanda",
   };
 
-  for (int i = 0; i < 300000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
+    for (int j = 0; j < 1000; ++j) {
+      tmp[key_set[rand() % key_set.size()] + std::to_string(j)] = value_set[rand() % value_set.size()];
+    }
+    ret.push_back(std::move(tmp));
+  }
+  return ret;
+}
 
-    tmp[key_set[i % key_set.size()]] = value_set[i % value_set.size()];
+std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
+  std::vector<std::unordered_map<std::string, uint64_t>> ret;
+  std::vector<std::string> key_set = {
+      "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
+  };
+  for (int i = 0; i < 1000; ++i) {
+    std::unordered_map<std::string, uint64_t> tmp;
+    for (int j = 0; j < 1000; ++j) {
+      tmp[key_set[rand() % key_set.size()] + std::to_string(j)] = rand() % 10000;
+    }
     ret.push_back(std::move(tmp));
   }
   return ret;
@@ -33,41 +49,31 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
 
 static std::vector<std::unordered_map<std::string, std::string>> info = initInfo();
 
-std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
-  std::vector<std::unordered_map<std::string, uint64_t>> ret;
-  std::vector<std::string> key_set = {
-      "get_file_from_db", "update_timestamp", "post_to_db", "delete_by_timestamp", "custom_opration",
-  };
-  for (int i = 0; i < 300000; ++i) {
-    std::unordered_map<std::string, uint64_t> tmp;
-
-    tmp[key_set[i % key_set.size()]] = i;
-    ret.push_back(std::move(tmp));
-  }
-  return ret;
-}
-
 static std::vector<std::unordered_map<std::string, uint64_t>> info2 = initInfo2();
 
 std::string benchmark_rapidjson() {
   Document d;
   d.SetArray();
   for (auto& each : info) {
-    const std::string& key = each.begin()->first;
-    const std::string& value = each.begin()->second;
     Value obj;
     obj.SetObject();
-    obj.AddMember(StringRef(&key[0], key.size()), StringRef(&value[0], value.size()), d.GetAllocator());
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      const std::string& value = each_record.second;
+      obj.AddMember(StringRef(&key[0], key.size()), StringRef(&value[0], value.size()), d.GetAllocator());
+    }
     d.PushBack(obj, d.GetAllocator());
   }
   for (auto& each : info2) {
-    const std::string& key = each.begin()->first;
-    uint64_t id = each.begin()->second;
     Value obj;
     obj.SetObject();
-    Value idder;
-    idder.SetUint64(id);
-    obj.AddMember(StringRef(&key[0], key.size()), idder, d.GetAllocator());
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      uint64_t id = each_record.second;
+      Value idder;
+      idder.SetUint64(id);
+      obj.AddMember(StringRef(&key[0], key.size()), idder, d.GetAllocator());
+    }
     d.PushBack(obj, d.GetAllocator());
   }
   StringBuffer buf;
@@ -97,17 +103,21 @@ template <bridge::SeriType seri_type>
 std::string benchmark_bridge() {
   auto array = bridge::array();
   for (auto& each : info) {
-    const std::string& key = each.begin()->first;
-    const std::string& value = each.begin()->second;
     auto map = bridge::map_view();
-    map->Insert(key, bridge::data_view(value));
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      const std::string& value = each_record.second;
+      map->Insert(key, bridge::data_view(value));
+    }
     array->Insert(std::move(map));
   }
   for (auto& each : info2) {
-    const std::string& key = each.begin()->first;
-    const uint64_t& id = each.begin()->second;
     auto map = bridge::map_view();
-    map->Insert(key, bridge::data(id));
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      const uint64_t& id = each_record.second;
+      map->Insert(key, bridge::data(id));
+    }
     array->Insert(std::move(map));
   }
   std::string ret = bridge::Serialize<seri_type>(std::move(array));
@@ -126,12 +136,16 @@ const std::string& GetBridgeReplaceStr() {
 }
 
 void bridge_parse() {
-  auto root = bridge::Parse(GetBridgeStr(), true);
+  bridge::ParseOption po;
+  po.parse_ref = true;
+  auto root = bridge::Parse(GetBridgeStr(), po);
   // bridge::ClearResource();
 }
 
 void bridge_parse_replace() {
-  auto root = bridge::Parse(GetBridgeReplaceStr(), true);
+  bridge::ParseOption po;
+  po.parse_ref = true;
+  auto root = bridge::Parse(GetBridgeReplaceStr(), po);
   // bridge::ClearResource();
 }
 

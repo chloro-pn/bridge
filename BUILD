@@ -3,7 +3,14 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
   name = "bridge",
   hdrs = glob(["include/**/*.h"]),
-  includes = ["include"]
+  srcs = glob(["src/*.cc"]),
+  includes = ["include"],
+  linkopts = [
+    "-pthread",
+  ],
+  deps = [
+    "@async_simple//:async-simple",
+  ]
 )
 
 cc_binary(
@@ -26,6 +33,14 @@ cc_binary(
 cc_binary(
   name = "adaptor",
   srcs = ["example/adaptor.cc"],
+  deps = [
+    ":bridge",
+  ]
+)
+
+cc_binary(
+  name = "scheduler",
+  srcs = ["example/coroutine_parse.cc"],
   deps = [
     ":bridge",
   ]

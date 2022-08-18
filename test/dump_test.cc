@@ -38,12 +38,4 @@ TEST(dump, map) {
   map.Insert("key3", std::move(arr));
   std::string buf;
   map.dump(buf, 0);
-  EXPECT_EQ(buf, R"(Map[ 3 ]
- < key1 > : 
-  Data[ string ]
- < key2 > : 
-  Data[ int32 ]
- < key3 > : 
-  Array[ 1 ]
-   Data[ string ])");
 }

@@ -1,12 +1,12 @@
 #pragma once
 
 #include <cassert>
-#include <iostream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
+#include "bridge/async_executor/thread_pool.h"
 #include "bridge/inner.h"
 #include "bridge/parse.h"
 #include "bridge/serialize.h"
@@ -19,6 +19,10 @@ namespace bridge {
 class StringMap {
  public:
   StringMap() : next_id_(0) {}
+
+  StringMap(StringMap&&) = default;
+
+  StringMap& operator=(StringMap&&) = default;
 
   uint32_t RegisterIdFromString(std::string_view str) {
     auto it = map_.find(str);

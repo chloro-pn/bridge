@@ -18,7 +18,9 @@ TEST(parse_and_seri, replace) {
   AsMap(v)->Insert("tags", ValueFactory<Data>("hello world"));
   auto content = Serialize<SeriType::REPLACE>(std::move(v));
 
-  auto root = Parse(content, true);
+  ParseOption po;
+  po.parse_ref = true;
+  auto root = Parse(content, po);
   ObjectWrapper wrapper(root.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
   EXPECT_EQ(wrapper.Size(), 3);

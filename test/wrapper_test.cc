@@ -29,7 +29,9 @@ TEST(object, wrapper) {
   std::string content = Serialize(std::move(map));
   EXPECT_TRUE(content[0] == 0x00 || content[0] == 0x01);
 
-  auto new_root = Parse(content, true);
+  ParseOption po;
+  po.parse_ref = true;
+  auto new_root = Parse(content, po);
   ObjectWrapper new_wrapper(new_root.get());
   EXPECT_EQ(new_wrapper.Empty(), false);
   EXPECT_EQ(new_wrapper.GetType().value(), ObjectType::Map);

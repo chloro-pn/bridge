@@ -21,6 +21,8 @@
 
 namespace bridge {
 
+constexpr size_t split_block_size = 1024 * 1024 * 10;
+
 class Object {
  public:
   Object(ObjectType type, bool ref_type) : type_(type), ref_type_(ref_type) {}
@@ -39,7 +41,7 @@ class Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const;
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const;
 
   void dump(std::string& buf, int level) const;
 
@@ -150,7 +152,8 @@ class Data : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
+    need_to_split = false;
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
@@ -270,7 +273,8 @@ class DataView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
+    need_to_split = false;
     assert(data_type_ != BRIDGE_INVALID);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
@@ -301,6 +305,11 @@ class Array : public Object {
   Array(std::vector<unique_ptr<Object>>&& values) : Object(ObjectType::Array, false), objects_(std::move(values)) {}
 
   void Insert(unique_ptr<Object>&& value) { objects_.push_back(std::move(value)); }
+
+  template <typename It>
+  void Insert(It begin, It end) {
+    objects_.insert(objects_.end(), begin, end);
+  }
 
   void Clear() { objects_.clear(); }
 
@@ -336,7 +345,7 @@ class Array : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
@@ -347,12 +356,18 @@ class Array : public Object {
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     for (auto& each : objects_) {
+      size_t object_type_position = outer.size();
       seriObjectType(each->GetType(), outer);
-      each->valueSeri(outer, map, si);
+      bool child_need_to_split = false;
+      each->valueSeri(outer, map, si, child_need_to_split);
+      if (child_need_to_split == true) {
+        assert(each->GetType() != ObjectType::Data);
+        outer[object_type_position] |= 0x80;
+      }
       if (si != nullptr) {
         size_t tmp_size = outer.size();
-        // 每当子节点序列化大小超过4096字节，则生成一个分片
-        if (tmp_size - current_size >= 4096) {
+        // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
+        if (tmp_size - current_size >= split_block_size) {
           block_size.push_back(tmp_size - current_size);
           current_size = tmp_size;
         }
@@ -363,7 +378,14 @@ class Array : public Object {
       block_size.push_back(outer.size() - current_size);
     }
     if (si != nullptr) {
-      si->RegisterSplitInfo(split_info_id, std::move(block_size));
+      // 如果分块大于1个，则需要注册分块信息
+      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
+      // 如果分块为0个（空数组）,不注册分块信息
+      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
+        si->RegisterSplitInfo(split_info_id, std::move(block_size));
+        need_to_split = true;
+      }
+      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
     }
   }
 
@@ -471,7 +493,7 @@ class Map : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
@@ -491,12 +513,18 @@ class Map : public Object {
         uint32_t id = map->RegisterIdFromString(each.first);
         seriLength(id, outer);
       }
+      size_t object_type_position = outer.size();
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer, map, si);
+      bool child_need_to_split = false;
+      each.second->valueSeri(outer, map, si, child_need_to_split);
+      if (child_need_to_split == true) {
+        outer[object_type_position] |= 0x80;
+        assert(each.second->GetType() != ObjectType::Data);
+      }
       if (si != nullptr) {
         size_t tmp_size = outer.size();
-        // 每当子节点序列化大小超过4096字节，则生成一个分片
-        if (tmp_size - current_size >= 4096) {
+        // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
+        if (tmp_size - current_size >= split_block_size) {
           block_size.push_back(tmp_size - current_size);
           current_size = tmp_size;
         }
@@ -507,7 +535,14 @@ class Map : public Object {
       block_size.push_back(outer.size() - current_size);
     }
     if (si != nullptr) {
-      si->RegisterSplitInfo(split_info_id, std::move(block_size));
+      // 如果分块大于1个，则需要注册分块信息
+      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
+      // 如果分块为0个（空数组）,不注册分块信息
+      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
+        si->RegisterSplitInfo(split_info_id, std::move(block_size));
+        need_to_split = true;
+      }
+      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
     }
   }
 
@@ -524,7 +559,7 @@ class Map : public Object {
   }
 
  private:
-  std::map<std::string, unique_ptr<Object>> objects_;
+  std::unordered_map<std::string, unique_ptr<Object>> objects_;
 };
 
 class MapView : public Object {
@@ -586,7 +621,7 @@ class MapView : public Object {
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
-  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
+  void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     uint32_t count = objects_.size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
@@ -606,12 +641,18 @@ class MapView : public Object {
         uint32_t id = map->RegisterIdFromString(each.first);
         seriLength(id, outer);
       }
+      size_t object_type_position = outer.size();
       seriObjectType(each.second->GetType(), outer);
-      each.second->valueSeri(outer, map, si);
+      bool child_need_to_split = false;
+      each.second->valueSeri(outer, map, si, child_need_to_split);
+      if (child_need_to_split == true) {
+        outer[object_type_position] |= 0x80;
+        assert(each.second->GetType() != ObjectType::Data);
+      }
       if (si != nullptr) {
         size_t tmp_size = outer.size();
-        // 每当子节点序列化大小超过4096字节，则生成一个分片
-        if (tmp_size - current_size >= 4096) {
+        // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
+        if (tmp_size - current_size >= split_block_size) {
           block_size.push_back(tmp_size - current_size);
           current_size = tmp_size;
         }
@@ -622,7 +663,14 @@ class MapView : public Object {
       block_size.push_back(outer.size() - current_size);
     }
     if (si != nullptr) {
-      si->RegisterSplitInfo(split_info_id, std::move(block_size));
+      // 如果分块大于1个，则需要注册分块信息
+      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
+      // 如果分块为0个（空数组）,不注册分块信息
+      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
+        si->RegisterSplitInfo(split_info_id, std::move(block_size));
+        need_to_split = true;
+      }
+      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
     }
   }
 
@@ -655,7 +703,7 @@ class MapView : public Object {
   void Insert(std::string_view key_view, unique_ptr<Object>&& value) { objects_.insert({key_view, std::move(value)}); }
 
  private:
-  std::map<std::string_view, unique_ptr<Object>> objects_;
+  std::unordered_map<std::string_view, unique_ptr<Object>> objects_;
 };
 
 #define BRIDGE_SPACE_PLAC
@@ -685,8 +733,8 @@ void Object::valueParse(const Inner& inner, size_t& offset, bool parse_ref, cons
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
-void Object::valueSeri(Outer& outer, StringMap* map, SplitInfo* si) const {
-  BRIDGE_DISPATCH(valueSeri, const, outer, map, si)
+void Object::valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
+  BRIDGE_DISPATCH(valueSeri, const, outer, map, si, need_to_split)
 }
 
 inline void Object::dump(std::string& buf, int level) const { BRIDGE_DISPATCH(dump, const, buf, level) }
@@ -745,8 +793,8 @@ class ObjectWrapper;
 
 class ObjectWrapperIterator {
  public:
-  using holder_type = std::map<std::string, unique_ptr<Object>>::const_iterator;
-  using holder_type_view = std::map<std::string_view, unique_ptr<Object>>::const_iterator;
+  using holder_type = std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
+  using holder_type_view = std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
 
   ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
 
@@ -996,7 +1044,13 @@ inline std::string SerializeNormal(unique_ptr<Object>&& obj) {
   ret.reserve(1024);
   ret.resize(sizeof(uint64_t));
   ret.push_back(SeriTypeToChar(SeriType::NORMAL));
-  root.valueSeri(ret, nullptr, &sp_info);
+  size_t split_flag_position = ret.size();
+  ret.push_back(char(0));
+  bool need_to_split = false;
+  root.valueSeri(ret, nullptr, &sp_info, need_to_split);
+  if (need_to_split == true) {
+    ret[split_flag_position] = 0x0A;
+  }
   size_t total_size = ret.size();
   SeriTotalSizeToOuter(total_size, ret);
   SuffixSecondary(ret, sp_info);
@@ -1013,7 +1067,13 @@ inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
   // 首部8个字节存储不包含辅助结构的总大小，这里先占位
   ret.resize(sizeof(uint64_t));
   ret.push_back(SeriTypeToChar(SeriType::REPLACE));
-  root.valueSeri(ret, &string_map, &sp_info);
+  size_t split_flag_position = ret.size();
+  ret.push_back(char(0));
+  bool need_to_split = false;
+  root.valueSeri(ret, &string_map, &sp_info, need_to_split);
+  if (need_to_split == true) {
+    ret[split_flag_position] = 0x0A;
+  }
   size_t total_size = ret.size();
   SeriTotalSizeToOuter(total_size, ret);
   // 将string_map信息后缀在序列化数据后面
@@ -1031,46 +1091,127 @@ inline std::string Serialize(unique_ptr<Object>&& obj) {
   }
 }
 
-inline unique_ptr<Object> Parse(const std::string& content, bool parse_ref = false) {
-  if (content.empty() == true) {
-    return unique_ptr<Object>(nullptr, object_pool_deleter);
+class Scheduler {
+ public:
+  explicit Scheduler(const std::string& content) : content_(content), use_string_map_(false), total_size_(0) {
+    initFromContent(content);
   }
-  size_t meta_size = sizeof(uint64_t) + sizeof(char);
-  assert(content.size() >= meta_size);
-  uint64_t total_size = ParseTotalSize(content);
-  char c = content[sizeof(uint64_t)];
-  InnerWrapper wrapper(content);
-  wrapper.skip(meta_size);
-  size_t offset = meta_size;
-  unique_ptr<Object> root(nullptr, object_pool_deleter);
-  if (parse_ref == false) {
-    root = ValueFactory<Map>();
-  } else {
-    root = ValueFactory<MapView>();
-  }
-  if (c == SeriTypeToChar(SeriType::NORMAL)) {
-    uint64_t tmp_total_size = total_size;
-    SplitInfo si = ParseSecondary<SplitInfo>(content, tmp_total_size);
-    // do nothing up to now
-    root->valueParse(wrapper, offset, parse_ref, nullptr);
-    if (wrapper.outOfRange() || offset != total_size) {
-      return unique_ptr<Object>(nullptr, object_pool_deleter);
+
+  virtual ~Scheduler() = default;
+
+  virtual unique_ptr<Object> Parse() = 0;
+
+ protected:
+  const std::string& content_;
+
+  const StringMap* GetStringMap() const {
+    if (use_string_map_ == false) {
+      return nullptr;
     }
-  } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
-    // ParseSecondary会改变total_size，因此申请一个临时值
-    uint64_t tmp_total_size = total_size;
-    StringMap sm = ParseSecondary<StringMap>(content, tmp_total_size);
-    SplitInfo si = ParseSecondary<SplitInfo>(content, tmp_total_size);
-    root->valueParse(wrapper, offset, parse_ref, &sm);
-    if (wrapper.outOfRange() || offset != total_size) {
-      return unique_ptr<Object>(nullptr, object_pool_deleter);
-    }
-  } else {
-    assert(false);
-    return unique_ptr<Object>(nullptr, object_pool_deleter);
+    return &string_map_;
   }
-  return parse_ref == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
-}
+
+  const SplitInfo& GetSplitInfo() const { return split_info_; }
+
+  size_t GetTotalSize() const { return total_size_; }
+
+  size_t GetMetaSize() const { return sizeof(uint64_t) + 2 * sizeof(char); }
+
+  bool NeedToSplit() const { return need_to_split_; }
+
+ private:
+  StringMap string_map_;
+  SplitInfo split_info_;
+  bool use_string_map_;
+  bool need_to_split_;
+  size_t total_size_;
+
+  void initFromContent(const std::string& content) {
+    size_t meta_size = GetMetaSize();
+    if (content.size() < meta_size) {
+      throw std::logic_error("content.size() < meta_size");
+    }
+    uint64_t total_size = ParseTotalSize(content);
+    char c = content[sizeof(uint64_t)];
+    InnerWrapper wrapper(content);
+    wrapper.skip(meta_size);
+    size_t offset = meta_size;
+    if (c == SeriTypeToChar(SeriType::NORMAL)) {
+      uint64_t tmp_total_size = total_size;
+      split_info_ = ParseSecondary<SplitInfo>(content, tmp_total_size);
+    } else if (c == SeriTypeToChar(SeriType::REPLACE)) {
+      // ParseSecondary会改变total_size，因此申请一个临时值
+      uint64_t tmp_total_size = total_size;
+      string_map_ = ParseSecondary<StringMap>(content, tmp_total_size);
+      split_info_ = ParseSecondary<SplitInfo>(content, tmp_total_size);
+      use_string_map_ = true;
+    } else {
+      throw std::logic_error("invalid seri type : " + std::to_string(c));
+    }
+    total_size_ = total_size;
+    char split_flag = content[sizeof(uint64_t) + sizeof(char)];
+    if (split_flag == 0x00) {
+      need_to_split_ = false;
+    } else if (split_flag == 0x0A) {
+      need_to_split_ = true;
+    } else {
+      throw std::logic_error("invalid split flag : " + std::to_string((int)split_flag));
+    }
+  }
+};
+
+class NormalScheduler : public Scheduler {
+ public:
+  NormalScheduler(const std::string& content, bool parse_ref) : Scheduler(content), parse_ref_(parse_ref) {}
+
+  unique_ptr<Object> Parse() override {
+    size_t meta_size = GetMetaSize();
+    InnerWrapper wrapper(content_);
+    wrapper.skip(meta_size);
+    size_t offset = meta_size;
+    unique_ptr<Object> root(nullptr, object_pool_deleter);
+    if (parse_ref_ == false) {
+      root = ValueFactory<Map>();
+    } else {
+      root = ValueFactory<MapView>();
+    }
+    root->valueParse(wrapper, offset, parse_ref_, GetStringMap());
+    if (offset != GetTotalSize()) {
+      throw std::logic_error("parse error");
+    }
+    return parse_ref_ == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
+  }
+
+ private:
+  bool parse_ref_;
+};
+
+class CoroutineScheduler : public Scheduler {
+ public:
+  CoroutineScheduler(const std::string& content, bool parse_ref, size_t wn)
+      : Scheduler(content), parse_ref_(parse_ref), worker_num_(wn) {}
+
+  unique_ptr<Object> Parse() override;
+
+  ~CoroutineScheduler() = default;
+
+ private:
+  bool parse_ref_;
+  size_t worker_num_;
+};
+
+enum class SchedulerType {
+  Normal,
+  Coroutine,
+};
+
+struct ParseOption {
+  SchedulerType type = SchedulerType::Normal;
+  bool parse_ref = false;
+  size_t worker_num_ = 1;
+};
+
+unique_ptr<Object> Parse(const std::string& content, ParseOption po = ParseOption());
 
 inline void ClearResource() {
   ObjectPool<Data>::Instance().Clear();

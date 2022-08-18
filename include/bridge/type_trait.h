@@ -149,6 +149,7 @@ concept bridge_outer_concept = requires(T& outer, char c, std::string s, const c
   {outer.append(s)};
   {outer.append(ptr, len)};
   { outer.size() } -> std::same_as<size_t>;
+  { outer[len] } -> std::same_as<char&>;
 };
 
 template <typename T>

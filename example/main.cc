@@ -27,8 +27,8 @@ int main() {
   root->dump(buf, 0);
   std::cout << "--- dump --- " << std::endl << buf << std::endl << "------------ " << std::endl;
   std::string tmp = Serialize(std::move(root));
-  // deserialize (ref-parse mode)
-  auto new_root = bridge::Parse(tmp, false);
+  // deserialize
+  auto new_root = bridge::Parse(tmp);
   // access new_root through ObjectWrapper proxy
   bridge::ObjectWrapper wrapper(new_root.get());
   std::cout << wrapper["key"][0].Get<std::string>().value() << ", ";

@@ -96,8 +96,25 @@ ObjectType parseObjectType(const Inner& inner, size_t& offset) {
   char tmp = *inner.curAddr();
   inner.skip(sizeof(tmp));
   offset += sizeof(tmp);
+  tmp = tmp & 0X7F;
   auto ret = CharToObjectType(tmp);
   assert(ret != ObjectType::Invalid);
+  return ret;
+}
+
+template <typename Inner>
+ObjectType parseObjectType(const Inner& inner, size_t& offset, bool& need_to_split) {
+  char tmp = *inner.curAddr();
+  inner.skip(sizeof(tmp));
+  offset += sizeof(tmp);
+  if ((tmp & 0x80) >> 1 == 0) {
+    need_to_split = false;
+  } else {
+    need_to_split = true;
+  }
+  tmp = tmp & 0X7F;
+  auto ret = CharToObjectType(tmp);
+  assert(ret < ObjectType::Invalid);
   return ret;
 }
 

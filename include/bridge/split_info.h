@@ -16,17 +16,25 @@ class SplitInfo {
  public:
   SplitInfo() : next_id_(1) {}
 
+  SplitInfo(SplitInfo&&) = default;
+
+  size_t size() const { return info_.size(); }
+
   uint32_t RequestId() {
     uint32_t ret = next_id_;
     next_id_ += 1;
     return ret;
   }
 
+  SplitInfo& operator=(SplitInfo&&) = default;
+
   void RegisterSplitInfo(uint32_t id, std::vector<uint32_t>&& info) { info_[id] = std::move(info); }
 
   void RegisterSplitInfo(uint32_t id, const std::vector<uint32_t>& info) { info_[id] = info; }
 
   const std::vector<uint32_t>& GetBlockInfoFromId(uint32_t id) const { return info_.at(id); }
+
+  bool Find(uint32_t id) const { return info_.find(id) != info_.end(); }
 
   std::string Serialize() const {
     std::string ret;
