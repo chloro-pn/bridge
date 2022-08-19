@@ -10,10 +10,11 @@ A high-performance and concise serialization and deserialization Library
 
 * **header-only**
 * sufficient unit-test
+* support **Parallel Parse** (based on c++20 coroutine and thread-pool)
 * support **Pattern Matching** (use the Pattern object to verify whether the Object meets some constraints)
 * support serialization of **Arbitrary Binary Data**
 * support **Dictionary Encoding**
-* convenient access interface ( ObjectWrapper )
+* convenient access interface (ObjectWrapper)
 * support **Serialization Adapters** based on standard containers (only vector and unordered_map up to now)
 * support **in-situ Parse**
 * support export to readable format
