@@ -1,0 +1,16 @@
+#include "rapidjson/document.h"
+#include "gtest/gtest.h"
+
+TEST(json, rapidjson) {
+  rapidjson::Document d;
+  d.SetObject();
+  for(int i = 0; i < 10; ++i) {
+    rapidjson::Value v;
+    v.SetUint(i);
+    d.AddMember("key", v, d.GetAllocator());
+  }
+  EXPECT_EQ(d.Size(), 10);
+  auto v = d["key"].GetUint();
+  // wtf ???, 顿时优化有了新思路
+  EXPECT_EQ(v, 0);
+}
