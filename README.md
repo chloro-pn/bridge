@@ -23,6 +23,9 @@ A high-performance and concise serialization and deserialization Library
 * cpp compiler supporting c++20 (like g++-11)
 * bazel 5.2.0
 
+### benchmark
+![image](https://github.com/chloro-pn/bridge/blob/master/png/benchmark.PNG)
+
 ### example 
 ```c++
 #include <iostream>
