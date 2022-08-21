@@ -24,7 +24,7 @@ std::vector<std::unordered_map<std::string, std::string>> initInfo() {
 
   for (int i = 0; i < 1000; ++i) {
     std::unordered_map<std::string, std::string> tmp;
-    for (int j = 0; j < 2000; ++j) {
+    for (int j = 0; j < 1000; ++j) {
       tmp[key_set[rand() % key_set.size()] + std::to_string(j)] = value_set[rand() % value_set.size()];
     }
     ret.push_back(std::move(tmp));
@@ -39,7 +39,7 @@ std::vector<std::unordered_map<std::string, uint64_t>> initInfo2() {
   };
   for (int i = 0; i < 1000; ++i) {
     std::unordered_map<std::string, uint64_t> tmp;
-    for (int j = 0; j < 2000; ++j) {
+    for (int j = 0; j < 1000; ++j) {
       tmp[key_set[rand() % key_set.size()] + std::to_string(j)] = rand() % 10000;
     }
     ret.push_back(std::move(tmp));
@@ -64,7 +64,7 @@ bridge::unique_ptr<bridge::Array> Construct(const T& info, const T2& info2) {
     auto each_msg = bridge::map_view();
     for (auto& each : each_record) {
       const std::string& key = each.first;
-      uint32_t id = each.second;
+      uint64_t id = each.second;
       each_msg->Insert(key, bridge::data_view(id));
       // array->Insert(bridge::data_view(id));
     }
@@ -85,7 +85,7 @@ int main() {
   timer.Start();
   std::string content = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(root));
   tmp = timer.End();
-  std::cout << " serialize use " << tmp << " ms" << std::endl;
+  std::cout << "serialize use " << tmp << " ms" << std::endl;
 
   bridge::ParseOption po;
   timer.Start();

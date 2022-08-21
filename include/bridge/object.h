@@ -406,36 +406,46 @@ class Map : public Object {
  public:
   Map() : Object(ObjectType::Map, false) {}
 
-  bool Insert(const std::string& key, unique_ptr<Object>&& value) {
-    if (objects_.count(key) != 0) {
-      return false;
-    }
+  void Insert(const std::string& key, unique_ptr<Object>&& value) {
+#ifdef BRIDGE_USE_UNORDERED_MAP
     objects_.insert({key, std::move(value)});
-    return true;
-  }
-
-  bool Remove(const std::string& key) {
-    if (objects_.count(key) != 0) {
-      objects_.erase(key);
-      return true;
-    }
-    return false;
+#else
+    objects_.emplace_back(std::pair<std::string, unique_ptr<Object>>(key, std::move(value)));
+#endif
   }
 
   const Object* operator[](const std::string& key) const {
+#ifdef BRIDGE_USE_UNORDERED_MAP
     auto it = objects_.find(key);
     if (it == objects_.end()) {
       return nullptr;
     }
     return it->second.get();
+#else
+    for(auto& each : objects_) {
+      if (each.first == key) {
+        return each.second.get();
+      }
+    }
+    return nullptr;
+#endif
   }
 
   unique_ptr<Object> Get(const std::string& key) {
+#ifdef BRIDGE_USE_UNORDERED_MAP
     auto it = objects_.find(key);
     if (it == objects_.end()) {
       return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
     return std::move(it->second);
+#else
+    for(auto& each : objects_) {
+      if (each.first == key) {
+        return std::move(each.second);
+      }
+    }
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
+#endif
   }
 
   size_t Size() const { return objects_.size(); }
@@ -487,7 +497,7 @@ class Map : public Object {
       if (inner.outOfRange()) {
         return;
       }
-      objects_.insert({std::string(key_view), std::move(v)});
+      Insert(std::string(key_view), std::move(v));
     }
   }
 
@@ -558,20 +568,39 @@ class Map : public Object {
     }
   }
 
+#ifdef BRIDGE_USE_UNORDERED_MAP
+  using iter_type = typename std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
+#else
+  using iter_type = typename std::vector<std::pair<std::string, unique_ptr<Object>>>::const_iterator;
+#endif
+
  private:
+#ifdef BRIDGE_USE_UNORDERED_MAP
   std::unordered_map<std::string, unique_ptr<Object>> objects_;
+#else
+  std::vector<std::pair<std::string, unique_ptr<Object>>> objects_;
+#endif
 };
 
 class MapView : public Object {
  public:
   MapView() : Object(ObjectType::Map, true) {}
-
+  
   const Object* operator[](const std::string& key) const {
+#ifdef BRIDGE_USE_UNORDERED_MAP
     auto it = objects_.find(key);
     if (it == objects_.end()) {
       return nullptr;
     }
     return it->second.get();
+#else
+   for(auto& each : objects_) {
+    if (each.first == key) {
+      return each.second.get();
+    }
+   }
+   return nullptr;
+#endif
   }
 
   template <typename Inner>
@@ -615,7 +644,7 @@ class MapView : public Object {
       if (inner.outOfRange()) {
         return;
       }
-      objects_.insert({key_view, std::move(v)});
+      Insert(key_view, std::move(v));
     }
   }
 
@@ -693,17 +722,42 @@ class MapView : public Object {
   size_t Size() const { return objects_.size(); }
 
   unique_ptr<Object> Get(const std::string& key) {
+#ifdef BRIDGE_USE_UNORDERED_MAP
     auto it = objects_.find(key);
     if (it == objects_.end()) {
       return unique_ptr<Object>(nullptr, object_pool_deleter);
     }
     return std::move(it->second);
+#else
+    for(auto& each : objects_) {
+      if (each.first == key) {
+        return std::move(each.second);
+      }
+    }
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
+#endif
   }
 
+#ifdef BRIDGE_USE_UNORDERED_MAP
   void Insert(std::string_view key_view, unique_ptr<Object>&& value) { objects_.insert({key_view, std::move(value)}); }
+#else
+  void Insert(std::string_view key_view, unique_ptr<Object>&& value) {
+    objects_.emplace_back(std::pair<std::string_view, unique_ptr<Object>>(std::move(key_view), std::move(value)));
+  }
+#endif
+
+#ifdef BRIDGE_USE_UNORDERED_MAP
+  using iter_type = typename std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
+#else
+  using iter_type = typename std::vector<std::pair<std::string_view, unique_ptr<Object>>>::const_iterator;
+#endif
 
  private:
+#ifdef BRIDGE_USE_UNORDERED_MAP
   std::unordered_map<std::string_view, unique_ptr<Object>> objects_;
+#else
+  std::vector<std::pair<std::string_view, unique_ptr<Object>>> objects_;
+#endif
 };
 
 #define BRIDGE_SPACE_PLAC
@@ -793,8 +847,8 @@ class ObjectWrapper;
 
 class ObjectWrapperIterator {
  public:
-  using holder_type = std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
-  using holder_type_view = std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
+  using holder_type = Map::iter_type;
+  using holder_type_view = MapView::iter_type;
 
   ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
 

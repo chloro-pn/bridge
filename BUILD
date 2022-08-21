@@ -10,7 +10,8 @@ cc_library(
   ],
   deps = [
     "@async_simple//:async-simple",
-  ]
+  ],
+  #defines = ["BRIDGE_USE_UNORDERED_MAP"],
 )
 
 cc_binary(

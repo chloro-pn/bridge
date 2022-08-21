@@ -88,7 +88,11 @@ std::string rapidjson_str = benchmark_rapidjson();
 
 void rapidjson_parse() {
   Document doc;
-  doc.Parse(&rapidjson_str[0], rapidjson_str.size());
+  char* ptr = new char[rapidjson_str.size() + 1];
+  ptr[rapidjson_str.size()] = 0;
+  memcpy((void*)ptr, &rapidjson_str[0], rapidjson_str.size());
+  doc.ParseInsitu(ptr);
+  delete ptr;
 }
 
 static void BM_Rapidjson(benchmark::State& state) {
