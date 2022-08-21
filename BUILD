@@ -44,6 +44,7 @@ cc_binary(
   srcs = ["example/coroutine_parse.cc"],
   deps = [
     ":bridge",
+    "@rapid-json//:rapidjson",
   ]
 )
 

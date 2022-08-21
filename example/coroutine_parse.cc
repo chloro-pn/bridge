@@ -6,6 +6,9 @@
 #include <utility>
 #include <vector>
 
+#include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 #include "bridge/async_executor/executor.h"
 #include "bridge/async_executor/task.h"
 #include "bridge/async_executor/thread_pool.h"
@@ -73,6 +76,49 @@ bridge::unique_ptr<bridge::Array> Construct(const T& info, const T2& info2) {
   return array;
 }
 
+using namespace rapidjson;
+
+template <typename T, typename T2>
+std::string benchmark_rapidjson(const T& info, const T2& info2) {
+  bridge::Timer timer;
+  timer.Start();
+  Document d;
+  d.SetArray();
+  for (auto& each : info) {
+    Value obj;
+    obj.SetObject();
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      const std::string& value = each_record.second;
+      obj.AddMember(StringRef(&key[0], key.size()), StringRef(&value[0], value.size()), d.GetAllocator());
+    }
+    d.PushBack(obj, d.GetAllocator());
+  }
+  for (auto& each : info2) {
+    Value obj;
+    obj.SetObject();
+    for (auto& each_record : each) {
+      const std::string& key = each_record.first;
+      uint64_t id = each_record.second;
+      Value idder;
+      idder.SetUint64(id);
+      obj.AddMember(StringRef(&key[0], key.size()), idder, d.GetAllocator());
+    }
+    d.PushBack(obj, d.GetAllocator());
+  }
+  auto tmp = timer.End();
+  std::cout << "rapidjson construct use " << tmp << " ms" << std::endl;
+  timer.Start();
+  StringBuffer buf;
+  Writer<StringBuffer> w(buf);
+  d.Accept(w);
+  const char* output = buf.GetString();
+  std::string new_buf(output, buf.GetSize());
+  tmp = timer.End();
+  std::cout << "rapidjson serialize use " << tmp << " ms" << std::endl;
+  return new_buf;
+}
+
 int main() {
   bridge::ThreadPool::GetOrConstructInstance(3);
   bridge::Timer timer;
@@ -87,6 +133,10 @@ int main() {
   tmp = timer.End();
   std::cout << "serialize use " << tmp << " ms" << std::endl;
 
+  std::string rcontent = benchmark_rapidjson(info, info2);
+
+  std::cout << "-----begin to parse------" << std::endl;
+
   bridge::ParseOption po;
   timer.Start();
   po.parse_ref = true;
@@ -96,7 +146,7 @@ int main() {
   tmp = timer.End();
   bridge::ObjectWrapper w(root2.get());
   std::cout << "bridge's coroutine parse use " << tmp << " ms" << std::endl;
-
+  
   timer.Start();
   po.parse_ref = true;
   po.type = bridge::SchedulerType::Normal;
@@ -104,4 +154,14 @@ int main() {
   assert(root1->GetType() == bridge::ObjectType::Array);
   tmp = timer.End();
   std::cout << "bridge's normal parse use " << tmp << " ms" << std::endl;
+
+  timer.Start();
+  Document doc;
+  char* ptr = new char[rcontent.size() + 1];
+  ptr[rcontent.size()] = 0;
+  memcpy((void*)ptr, &rcontent[0], rcontent.size());
+  doc.ParseInsitu(ptr);
+  delete ptr;
+  tmp = timer.End();
+  std::cout << "rapidjson parse use " << tmp << " ms" << std::endl;
 }
