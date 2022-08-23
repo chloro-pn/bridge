@@ -24,9 +24,9 @@ TEST(dump, array) {
   std::string buf;
   arr.dump(buf, 0);
   EXPECT_EQ(buf, R"(Array[ 3 ]
- Data[ string ]
+ Data[ bytes ]
  Data[ int32 ]
- Data[ bytes ])");
+ Data[ string ])");
 }
 
 TEST(dump, map) {

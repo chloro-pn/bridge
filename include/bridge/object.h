@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tuple>
 
 #include "bridge/data_type.h"
 #include "bridge/inner.h"
@@ -300,32 +301,78 @@ class DataView : public Object {
 
 class Array : public Object {
  public:
-  Array() : Object(ObjectType::Array, false) {}
+   struct ArrayItem {
+    unique_ptr<Object> node_;
+    ArrayItem* next_;
 
-  Array(std::vector<unique_ptr<Object>>&& values) : Object(ObjectType::Array, false), objects_(std::move(values)) {}
+    static ArrayItem* GetFromObjectPool() {
+      auto ret = ObjectPool<ArrayItem>::Instance().Alloc();
+      return ret;
+    }
 
-  void Insert(unique_ptr<Object>&& value) { objects_.push_back(std::move(value)); }
+    ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {
 
-  template <typename It>
-  void Insert(It begin, It end) {
-    objects_.insert(objects_.end(), begin, end);
+    }
+  };
+
+  Array() : Object(ObjectType::Array, false), last_child_(nullptr), size_(0) {}
+
+  void Merge(const std::tuple<Array::ArrayItem*, Array::ArrayItem*, size_t>& block) {
+    auto head = std::get<0>(block);
+    auto tail = std::get<1>(block);
+    auto count = std::get<2>(block);
+    if (head == nullptr || tail == nullptr) {
+      assert(head == nullptr && tail == nullptr);
+      return;
+    }
+    tail->next_ = last_child_;
+    last_child_ = head;
+    size_ = size_ + count;
   }
 
-  void Clear() { objects_.clear(); }
+  void Insert(unique_ptr<Object>&& value) { 
+    auto node = ArrayItem::GetFromObjectPool();
+    node->node_ = std::move(value);
+    if (last_child_ != nullptr) {
+      node->next_ = last_child_;
+      last_child_ = node;
+    } else {
+      last_child_ = node;
+    }
+    size_ += 1;
+  }
 
-  size_t Size() const { return objects_.size(); }
+  void Clear() { 
+    // 由资源池释放资源
+    last_child_ = nullptr;
+    size_ = 0;
+  }
+
+  size_t Size() const { return size_; }
 
   const Object* operator[](size_t n) const {
-    if (n >= objects_.size()) {
+    if (n >= Size()) {
       return nullptr;
     }
-    return objects_[n].get();
+    // 逆序存储
+    n = Size() - 1 - n;
+    size_t i = 0;
+    ArrayItem* tmp = last_child_;
+    while(i < n) {
+      assert(tmp != nullptr);
+      tmp = tmp->next_;
+      i += 1;
+    }
+    assert(tmp != nullptr);
+    return tmp->node_.get();
   }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-    objects_.clear();
+    Clear();
+    ArrayItem* head = nullptr;
+    ArrayItem* tail = nullptr;
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
@@ -339,14 +386,25 @@ class Array : public Object {
       if (inner.outOfRange()) {
         return;
       }
-      objects_.push_back(std::move(v));
+
+      ArrayItem* tmp = ArrayItem::GetFromObjectPool();
+      tmp->node_ = std::move(v);
+      if (head == nullptr) {
+        head = tmp;
+        tail = head;
+      } else {
+        tail->next_ = tmp;
+        tail = tmp;
+      }
     }
+    size_ = static_cast<size_t>(count);
+    last_child_ = head;
   }
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = objects_.size();
+    uint32_t count = Size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
     if (si != nullptr) {
@@ -355,7 +413,9 @@ class Array : public Object {
     seriLength(split_info_id, outer);
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
-    for (auto& each : objects_) {
+    ArrayItem* cur = last_child_;
+    while(cur != nullptr) {
+      auto each = cur->node_.get();
       size_t object_type_position = outer.size();
       seriObjectType(each->GetType(), outer);
       bool child_need_to_split = false;
@@ -372,6 +432,7 @@ class Array : public Object {
           current_size = tmp_size;
         }
       }
+      cur = cur->next_;
     }
     // 最后一个分片，可能是0，是0的话忽略
     if (si != nullptr && outer.size() - current_size > 0) {
@@ -392,74 +453,130 @@ class Array : public Object {
   void dump(std::string& buf, int level) const {
     std::string prefix(level, ' ');
     buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
-    for (auto& each : objects_) {
+    ArrayItem* cur = last_child_;
+    while (cur != nullptr) {
+      auto each = cur->node_.get();
       buf.push_back('\n');
       each->dump(buf, level + 1);
+      cur = cur->next_;
     }
   }
 
  private:
-  std::vector<unique_ptr<Object>> objects_;
+  ArrayItem* last_child_;
+  size_t size_;
 };
 
 class Map : public Object {
  public:
-  Map() : Object(ObjectType::Map, false) {}
+  struct MapItem {
+    std::string key_;
+    unique_ptr<Object> value_;
+    MapItem* next_;
+
+    MapItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {
+
+    }
+
+    static MapItem* GetFromObjectPool() {
+      auto ret = ObjectPool<MapItem>::Instance().Alloc();
+      return ret;
+    }
+  };
+
+  struct MapIterator {
+    MapItem* item_;
+
+    explicit MapIterator(MapItem* it = nullptr) : item_(it) {}
+
+    bool operator==(const MapIterator& other) const {
+      return item_ == other.item_;
+    }
+
+    bool operator!=(const MapIterator& other) const {
+      return item_ != other.item_;
+    }
+
+    MapIterator& operator++() {
+      item_ = item_->next_;
+      return *this;
+    }
+
+    const std::string& GetKey() const {
+      return item_->key_;
+    }
+
+    const Object* GetValue() const {
+      return item_->value_.get();
+    }
+  };
+
+  Map() : Object(ObjectType::Map, false), last_node_(nullptr), size_(0) {}
+
+  void Merge(const std::tuple<Map::MapItem*, Map::MapItem*, size_t>& block) {
+    auto head = std::get<0>(block);
+    auto tail = std::get<1>(block);
+    auto count = std::get<2>(block);
+    if (head == nullptr || tail == nullptr) {
+      assert(head == nullptr && tail == nullptr);
+      return;
+    }
+    tail->next_ = last_node_;
+    last_node_ = head;
+    size_ = size_ + count;
+  }
 
   void Insert(const std::string& key, unique_ptr<Object>&& value) {
-#ifdef BRIDGE_USE_UNORDERED_MAP
-    objects_.insert({key, std::move(value)});
-#else
-    objects_.emplace_back(std::pair<std::string, unique_ptr<Object>>(key, std::move(value)));
-#endif
+    auto node = MapItem::GetFromObjectPool();
+    node->key_ = key;
+    node->value_ = std::move(value);
+    if (last_node_ == nullptr) {
+      last_node_ = node;
+    } else {
+      node->next_ = last_node_;
+      last_node_ = node;
+    }
+    size_ += 1;
   }
 
   const Object* operator[](const std::string& key) const {
-#ifdef BRIDGE_USE_UNORDERED_MAP
-    auto it = objects_.find(key);
-    if (it == objects_.end()) {
-      return nullptr;
-    }
-    return it->second.get();
-#else
-    for(auto& each : objects_) {
-      if (each.first == key) {
-        return each.second.get();
+    MapItem* cur = last_node_;
+    while(cur != nullptr) {
+      if (cur->key_ == key) {
+        return cur->value_.get();
       }
+      cur = cur->next_;
     }
     return nullptr;
-#endif
   }
 
   unique_ptr<Object> Get(const std::string& key) {
-#ifdef BRIDGE_USE_UNORDERED_MAP
-    auto it = objects_.find(key);
-    if (it == objects_.end()) {
-      return unique_ptr<Object>(nullptr, object_pool_deleter);
-    }
-    return std::move(it->second);
-#else
-    for(auto& each : objects_) {
-      if (each.first == key) {
-        return std::move(each.second);
+    MapItem* cur = last_node_;
+    while(cur != nullptr) {
+      if (cur->key_ == key) {
+        return std::move(cur->value_);
       }
+      cur = cur->next_;
     }
     return unique_ptr<Object>(nullptr, object_pool_deleter);
-#endif
+
   }
 
-  size_t Size() const { return objects_.size(); }
+  size_t Size() const { return size_; }
 
-  void Clear() { objects_.clear(); }
+  void Clear() { 
+    last_node_ = nullptr;
+    size_ = 0;
+   }
 
-  auto Begin() const { return objects_.begin(); }
+  auto Begin() const { return MapIterator(last_node_); }
 
-  auto End() const { return objects_.end(); }
+  auto End() const { return MapIterator(nullptr); }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-    objects_.clear();
+    Clear();
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
@@ -499,12 +616,13 @@ class Map : public Object {
       }
       Insert(std::string(key_view), std::move(v));
     }
+    size_ = static_cast<size_t>(count);
   }
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = objects_.size();
+    uint32_t count = Size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
     if (si != nullptr) {
@@ -513,20 +631,22 @@ class Map : public Object {
     seriLength(split_info_id, outer);
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
-    for (auto& each : objects_) {
+    MapItem* cur = last_node_;
+    while (cur != nullptr) {
+      auto each = cur->value_.get();
       // key seri
       if (map == nullptr) {
-        uint32_t key_length = each.first.size();
+        uint32_t key_length = cur->key_.size();
         seriLength(key_length, outer);
-        outer.append(each.first);
+        outer.append(cur->key_);
       } else {
-        uint32_t id = map->RegisterIdFromString(each.first);
+        uint32_t id = map->RegisterIdFromString(cur->key_);
         seriLength(id, outer);
       }
       size_t object_type_position = outer.size();
-      seriObjectType(each.second->GetType(), outer);
+      seriObjectType(each->GetType(), outer);
       bool child_need_to_split = false;
-      each.second->valueSeri(outer, map, si, child_need_to_split);
+      each->valueSeri(outer, map, si, child_need_to_split);
       if (child_need_to_split == true) {
         outer[object_type_position] |= 0x80;
         assert(each.second->GetType() != ObjectType::Data);
@@ -539,6 +659,7 @@ class Map : public Object {
           current_size = tmp_size;
         }
       }
+      cur = cur->next_;
     }
     // 最后一个分片，可能是0，是0的话忽略
     if (si != nullptr && outer.size() - current_size > 0) {
@@ -560,53 +681,97 @@ class Map : public Object {
     std::string prefix(level, ' ');
     buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
     std::string key_prefix(level + 1, ' ');
-    for (auto& each : objects_) {
+    MapItem* cur = last_node_;
+    while(cur != nullptr) {
       buf.push_back('\n');
-      buf.append(key_prefix + "< " + each.first + " > : ");
+      buf.append(key_prefix + "< " + cur->key_ + " > : ");
       buf.push_back('\n');
-      each.second->dump(buf, level + 2);
+      cur->value_->dump(buf, level + 2);
+      cur = cur->next_;
     }
   }
 
-#ifdef BRIDGE_USE_UNORDERED_MAP
-  using iter_type = typename std::unordered_map<std::string, unique_ptr<Object>>::const_iterator;
-#else
-  using iter_type = typename std::vector<std::pair<std::string, unique_ptr<Object>>>::const_iterator;
-#endif
+  using iter_type = MapIterator;
 
  private:
-#ifdef BRIDGE_USE_UNORDERED_MAP
-  std::unordered_map<std::string, unique_ptr<Object>> objects_;
-#else
-  std::vector<std::pair<std::string, unique_ptr<Object>>> objects_;
-#endif
+  MapItem* last_node_;
+  size_t size_;
 };
 
 class MapView : public Object {
  public:
-  MapView() : Object(ObjectType::Map, true) {}
+   struct MapViewItem {
+    std::string_view key_;
+    unique_ptr<Object> value_;
+    MapViewItem* next_;
+
+    MapViewItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {
+
+    }
+
+    static MapViewItem* GetFromObjectPool() {
+      auto ret = ObjectPool<MapViewItem>::Instance().Alloc();
+      return ret;
+    }
+  };
+
+  struct MapViewIterator {
+    MapViewItem* item_;
+
+    explicit MapViewIterator(MapViewItem* it = nullptr) : item_(it) {}
+
+    bool operator==(const MapViewIterator& other) const {
+      return item_ == other.item_;
+    }
+
+    bool operator!=(const MapViewIterator& other) const {
+      return item_ != other.item_;
+    }
+
+    MapViewIterator& operator++() {
+      item_ = item_->next_;
+      return *this;
+    }
+
+    std::string_view GetKey() const {
+      return item_->key_;
+    }
+
+    const Object* GetValue() const {
+      return item_->value_.get();
+    }
+  };
+
+  MapView() : Object(ObjectType::Map, true), last_node_(nullptr), size_(0) {}
   
+  void Merge(const std::tuple<MapView::MapViewItem*, MapView::MapViewItem*, size_t>& block) {
+    auto head = std::get<0>(block);
+    auto tail = std::get<1>(block);
+    auto count = std::get<2>(block);
+    if (head == nullptr || tail == nullptr) {
+      assert(head == nullptr && tail == nullptr);
+      return;
+    }
+    tail->next_ = last_node_;
+    last_node_ = head;
+    size_ = size_ + count;
+  }
+
   const Object* operator[](const std::string& key) const {
-#ifdef BRIDGE_USE_UNORDERED_MAP
-    auto it = objects_.find(key);
-    if (it == objects_.end()) {
-      return nullptr;
+    MapViewItem* cur = last_node_;
+    while(cur != nullptr) {
+      if (cur->key_ == key) {
+        return cur->value_.get();
+      }
+      cur = cur->next_;
     }
-    return it->second.get();
-#else
-   for(auto& each : objects_) {
-    if (each.first == key) {
-      return each.second.get();
-    }
-   }
-   return nullptr;
-#endif
+    return nullptr;
   }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
-    objects_.clear();
+    Clear();
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
@@ -646,12 +811,13 @@ class MapView : public Object {
       }
       Insert(key_view, std::move(v));
     }
+    size_ = static_cast<size_t>(count);
   }
 
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = objects_.size();
+    uint32_t count = Size();
     seriLength(count, outer);
     uint32_t split_info_id = 0;
     if (si != nullptr) {
@@ -660,23 +826,25 @@ class MapView : public Object {
     seriLength(split_info_id, outer);
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
-    for (auto& each : objects_) {
+    MapViewItem* cur = last_node_;
+    while(cur != nullptr) {
+      auto each = cur->value_.get();
       // key seri
       if (map == nullptr) {
-        uint32_t key_length = each.first.size();
+        uint32_t key_length = cur->key_.size();
         seriLength(key_length, outer);
-        outer.append(&each.first[0], each.first.size());
+        outer.append(&cur->key_[0], cur->key_.size());
       } else {
-        uint32_t id = map->RegisterIdFromString(each.first);
+        uint32_t id = map->RegisterIdFromString(cur->key_);
         seriLength(id, outer);
       }
       size_t object_type_position = outer.size();
-      seriObjectType(each.second->GetType(), outer);
+      seriObjectType(each->GetType(), outer);
       bool child_need_to_split = false;
-      each.second->valueSeri(outer, map, si, child_need_to_split);
+      each->valueSeri(outer, map, si, child_need_to_split);
       if (child_need_to_split == true) {
         outer[object_type_position] |= 0x80;
-        assert(each.second->GetType() != ObjectType::Data);
+        assert(each->GetType() != ObjectType::Data);
       }
       if (si != nullptr) {
         size_t tmp_size = outer.size();
@@ -686,6 +854,7 @@ class MapView : public Object {
           current_size = tmp_size;
         }
       }
+      cur = cur->next_;
     }
     // 最后一个分片，可能是0，是0的话忽略
     if (si != nullptr && outer.size() - current_size > 0) {
@@ -707,57 +876,56 @@ class MapView : public Object {
     std::string prefix(level, ' ');
     buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
     std::string key_prefix(level + 1, ' ');
-    for (auto& each : objects_) {
+    MapViewItem* cur = last_node_;
+    while(cur != nullptr) {
       buf.push_back('\n');
-      buf.append(key_prefix + "< " + std::string(each.first) + " > : ");
+      buf.append(key_prefix + "< " + std::string(cur->key_) + " > : ");
       buf.push_back('\n');
-      each.second->dump(buf, level + 2);
+      cur->value_->dump(buf, level + 2);
+      cur = cur->next_;
     }
   }
 
-  auto Begin() const { return objects_.begin(); }
+  auto Begin() const { return MapViewIterator(last_node_); }
 
-  auto End() const { return objects_.end(); }
+  auto End() const { return MapViewIterator(nullptr); }
 
-  size_t Size() const { return objects_.size(); }
+  size_t Size() const { return size_; }
+
+  void Clear() { 
+    last_node_ = nullptr;
+    size_ = 0;
+   }
 
   unique_ptr<Object> Get(const std::string& key) {
-#ifdef BRIDGE_USE_UNORDERED_MAP
-    auto it = objects_.find(key);
-    if (it == objects_.end()) {
-      return unique_ptr<Object>(nullptr, object_pool_deleter);
-    }
-    return std::move(it->second);
-#else
-    for(auto& each : objects_) {
-      if (each.first == key) {
-        return std::move(each.second);
+    MapViewItem* cur = last_node_;
+    while(cur != nullptr) {
+      if (cur->key_ == key) {
+        return std::move(cur->value_);
       }
+      cur = cur->next_;
     }
     return unique_ptr<Object>(nullptr, object_pool_deleter);
-#endif
   }
 
-#ifdef BRIDGE_USE_UNORDERED_MAP
-  void Insert(std::string_view key_view, unique_ptr<Object>&& value) { objects_.insert({key_view, std::move(value)}); }
-#else
   void Insert(std::string_view key_view, unique_ptr<Object>&& value) {
-    objects_.emplace_back(std::pair<std::string_view, unique_ptr<Object>>(std::move(key_view), std::move(value)));
+    auto node = MapViewItem::GetFromObjectPool();
+    node->key_ = key_view;
+    node->value_ = std::move(value);
+    if (last_node_ == nullptr) {
+      last_node_ = node;
+    } else {
+      node->next_ = last_node_;
+      last_node_ = node;
+    }
+    size_ += 1;
   }
-#endif
 
-#ifdef BRIDGE_USE_UNORDERED_MAP
-  using iter_type = typename std::unordered_map<std::string_view, unique_ptr<Object>>::const_iterator;
-#else
-  using iter_type = typename std::vector<std::pair<std::string_view, unique_ptr<Object>>>::const_iterator;
-#endif
+  using iter_type = MapViewIterator;
 
  private:
-#ifdef BRIDGE_USE_UNORDERED_MAP
-  std::unordered_map<std::string_view, unique_ptr<Object>> objects_;
-#else
-  std::vector<std::pair<std::string_view, unique_ptr<Object>>> objects_;
-#endif
+  MapViewItem* last_node_;
+  size_t size_;
 };
 
 #define BRIDGE_SPACE_PLAC
@@ -865,7 +1033,7 @@ class ObjectWrapperIterator {
     return *this;
   }
 
-  std::string_view GetKey() const { return view_ == false ? iter_->first : iter_view_->first; }
+  std::string_view GetKey() const { return view_ == false ? iter_.GetKey() : iter_view_.GetKey(); }
 
   ObjectWrapper GetValue() const;
 
@@ -1008,9 +1176,9 @@ class ObjectWrapper {
 
 inline ObjectWrapper ObjectWrapperIterator::GetValue() const {
   if (view_ == false) {
-    return ObjectWrapper(iter_->second.get());
+    return ObjectWrapper(iter_.GetValue());
   }
-  return ObjectWrapper(iter_view_->second.get());
+  return ObjectWrapper(iter_view_.GetValue());
 }
 
 inline Map* AsMap(Object* obj) {
