@@ -636,7 +636,7 @@ class Map : public Object {
       each->valueSeri(outer, map, si, child_need_to_split);
       if (child_need_to_split == true) {
         outer[object_type_position] |= 0x80;
-        assert(each.second->GetType() != ObjectType::Data);
+        assert(each->GetType() != ObjectType::Data);
       }
       if (si != nullptr) {
         size_t tmp_size = outer.size();

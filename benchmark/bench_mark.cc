@@ -92,7 +92,7 @@ void rapidjson_parse() {
   ptr[rapidjson_str.size()] = 0;
   memcpy((void*)ptr, &rapidjson_str[0], rapidjson_str.size());
   doc.ParseInsitu(ptr);
-  delete ptr;
+  delete[] ptr;
 }
 
 static void BM_Rapidjson(benchmark::State& state) {
