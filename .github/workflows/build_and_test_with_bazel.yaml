@@ -26,13 +26,3 @@ jobs:
       run: ./bazel-bin/bench_mark --benchmark_time_unit=ms
     - name: coroutine
       run: bazel run //:scheduler --compilation_mode=opt
-    - name: cppcheck
-      uses: deep5050/cppcheck-action@main
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        exclude_check: ./test
-    - name: publish_report
-      uses: mikeal/publish-to-github-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        BRANCH_NAME: 'master' # your branch name goes here

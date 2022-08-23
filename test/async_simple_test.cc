@@ -27,7 +27,7 @@ TEST(async_simple, task) {
     a2->Insert(data(uint32_t(i)));
   }
   ObjectWrapper w0(a2.get());
-  for(size_t i = 0; i < 10000; ++i) {
+  for (size_t i = 0; i < 10000; ++i) {
     EXPECT_EQ(w0[i].Get<uint32_t>().value(), i);
   }
   arr->Insert("arr2", std::move(a2));

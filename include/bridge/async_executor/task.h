@@ -1,8 +1,8 @@
 #pragma once
 
 #include <string_view>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 #include "async_simple/coro/Collect.h"
 #include "async_simple/coro/Lazy.h"
@@ -27,8 +27,8 @@ inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& s
 inline Lazy<ParseResult> ParseMap(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
                                   bool parse_ref);
 
-inline Lazy<std::tuple<Array::ArrayItem*, Array::ArrayItem*, size_t>> ParseArrayBlock(std::string_view content, size_t begin, size_t end,
-                                                             const SplitInfo& si, bool parse_ref, const StringMap* sm) {
+inline Lazy<std::tuple<Array::ArrayItem*, Array::ArrayItem*, size_t>> ParseArrayBlock(
+    std::string_view content, size_t begin, size_t end, const SplitInfo& si, bool parse_ref, const StringMap* sm) {
   Array::ArrayItem* head = nullptr;
   Array::ArrayItem* tail = nullptr;
   size_t count = 0;
@@ -97,16 +97,15 @@ inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& s
   auto objs = co_await collectAllPara(std::move(tasks));
   unique_ptr<Array> ret = array();
   // 这里需要逆序合并
-  for(auto it = objs.rbegin(); it != objs.rend(); ++it) {
+  for (auto it = objs.rbegin(); it != objs.rend(); ++it) {
     ret->Merge(it->value());
   }
   co_return ParseResult(begin, std::move(ret));
 }
 
-inline Lazy<std::tuple<Map::MapItem*, Map::MapItem*, size_t>> ParseMapBlock(std::string_view content,
-                                                                                   size_t begin, size_t end,
-                                                                                   const SplitInfo& si,
-                                                                                   const StringMap* sm) {
+inline Lazy<std::tuple<Map::MapItem*, Map::MapItem*, size_t>> ParseMapBlock(std::string_view content, size_t begin,
+                                                                            size_t end, const SplitInfo& si,
+                                                                            const StringMap* sm) {
   Map::MapItem* head(nullptr);
   Map::MapItem* tail(nullptr);
   size_t count = 0;
@@ -163,10 +162,8 @@ inline Lazy<std::tuple<Map::MapItem*, Map::MapItem*, size_t>> ParseMapBlock(std:
   co_return std::tuple<Map::MapItem*, Map::MapItem*, size_t>(head, tail, count);
 }
 
-inline Lazy<std::tuple<MapView::MapViewItem*, MapView::MapViewItem*, size_t>> ParseMapViewBlock(std::string_view content,
-                                                                                            size_t begin, size_t end,
-                                                                                            const SplitInfo& si,
-                                                                                            const StringMap* sm) {
+inline Lazy<std::tuple<MapView::MapViewItem*, MapView::MapViewItem*, size_t>> ParseMapViewBlock(
+    std::string_view content, size_t begin, size_t end, const SplitInfo& si, const StringMap* sm) {
   MapView::MapViewItem* head = nullptr;
   MapView::MapViewItem* tail = nullptr;
   size_t count = 0;

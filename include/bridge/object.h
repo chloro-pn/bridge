@@ -5,9 +5,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
-#include <tuple>
 
 #include "bridge/data_type.h"
 #include "bridge/inner.h"
@@ -301,7 +301,7 @@ class DataView : public Object {
 
 class Array : public Object {
  public:
-   struct ArrayItem {
+  struct ArrayItem {
     unique_ptr<Object> node_;
     ArrayItem* next_;
 
@@ -310,9 +310,7 @@ class Array : public Object {
       return ret;
     }
 
-    ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {
-
-    }
+    ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {}
   };
 
   Array() : Object(ObjectType::Array, false), last_child_(nullptr), size_(0) {}
@@ -330,7 +328,7 @@ class Array : public Object {
     size_ = size_ + count;
   }
 
-  void Insert(unique_ptr<Object>&& value) { 
+  void Insert(unique_ptr<Object>&& value) {
     auto node = ArrayItem::GetFromObjectPool();
     node->node_ = std::move(value);
     if (last_child_ != nullptr) {
@@ -342,7 +340,7 @@ class Array : public Object {
     size_ += 1;
   }
 
-  void Clear() { 
+  void Clear() {
     // 由资源池释放资源
     last_child_ = nullptr;
     size_ = 0;
@@ -358,7 +356,7 @@ class Array : public Object {
     n = Size() - 1 - n;
     size_t i = 0;
     ArrayItem* tmp = last_child_;
-    while(i < n) {
+    while (i < n) {
       assert(tmp != nullptr);
       tmp = tmp->next_;
       i += 1;
@@ -414,7 +412,7 @@ class Array : public Object {
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     ArrayItem* cur = last_child_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       auto each = cur->node_.get();
       size_t object_type_position = outer.size();
       seriObjectType(each->GetType(), outer);
@@ -474,9 +472,7 @@ class Map : public Object {
     unique_ptr<Object> value_;
     MapItem* next_;
 
-    MapItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {
-
-    }
+    MapItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
 
     static MapItem* GetFromObjectPool() {
       auto ret = ObjectPool<MapItem>::Instance().Alloc();
@@ -489,26 +485,18 @@ class Map : public Object {
 
     explicit MapIterator(MapItem* it = nullptr) : item_(it) {}
 
-    bool operator==(const MapIterator& other) const {
-      return item_ == other.item_;
-    }
+    bool operator==(const MapIterator& other) const { return item_ == other.item_; }
 
-    bool operator!=(const MapIterator& other) const {
-      return item_ != other.item_;
-    }
+    bool operator!=(const MapIterator& other) const { return item_ != other.item_; }
 
     MapIterator& operator++() {
       item_ = item_->next_;
       return *this;
     }
 
-    const std::string& GetKey() const {
-      return item_->key_;
-    }
+    const std::string& GetKey() const { return item_->key_; }
 
-    const Object* GetValue() const {
-      return item_->value_.get();
-    }
+    const Object* GetValue() const { return item_->value_.get(); }
   };
 
   Map() : Object(ObjectType::Map, false), last_node_(nullptr), size_(0) {}
@@ -541,7 +529,7 @@ class Map : public Object {
 
   const Object* operator[](const std::string& key) const {
     MapItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       if (cur->key_ == key) {
         return cur->value_.get();
       }
@@ -552,22 +540,21 @@ class Map : public Object {
 
   unique_ptr<Object> Get(const std::string& key) {
     MapItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       if (cur->key_ == key) {
         return std::move(cur->value_);
       }
       cur = cur->next_;
     }
     return unique_ptr<Object>(nullptr, object_pool_deleter);
-
   }
 
   size_t Size() const { return size_; }
 
-  void Clear() { 
+  void Clear() {
     last_node_ = nullptr;
     size_ = 0;
-   }
+  }
 
   auto Begin() const { return MapIterator(last_node_); }
 
@@ -682,7 +669,7 @@ class Map : public Object {
     buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
     std::string key_prefix(level + 1, ' ');
     MapItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       buf.push_back('\n');
       buf.append(key_prefix + "< " + cur->key_ + " > : ");
       buf.push_back('\n');
@@ -700,14 +687,12 @@ class Map : public Object {
 
 class MapView : public Object {
  public:
-   struct MapViewItem {
+  struct MapViewItem {
     std::string_view key_;
     unique_ptr<Object> value_;
     MapViewItem* next_;
 
-    MapViewItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {
-
-    }
+    MapViewItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
 
     static MapViewItem* GetFromObjectPool() {
       auto ret = ObjectPool<MapViewItem>::Instance().Alloc();
@@ -720,30 +705,22 @@ class MapView : public Object {
 
     explicit MapViewIterator(MapViewItem* it = nullptr) : item_(it) {}
 
-    bool operator==(const MapViewIterator& other) const {
-      return item_ == other.item_;
-    }
+    bool operator==(const MapViewIterator& other) const { return item_ == other.item_; }
 
-    bool operator!=(const MapViewIterator& other) const {
-      return item_ != other.item_;
-    }
+    bool operator!=(const MapViewIterator& other) const { return item_ != other.item_; }
 
     MapViewIterator& operator++() {
       item_ = item_->next_;
       return *this;
     }
 
-    std::string_view GetKey() const {
-      return item_->key_;
-    }
+    std::string_view GetKey() const { return item_->key_; }
 
-    const Object* GetValue() const {
-      return item_->value_.get();
-    }
+    const Object* GetValue() const { return item_->value_.get(); }
   };
 
   MapView() : Object(ObjectType::Map, true), last_node_(nullptr), size_(0) {}
-  
+
   void Merge(const std::tuple<MapView::MapViewItem*, MapView::MapViewItem*, size_t>& block) {
     auto head = std::get<0>(block);
     auto tail = std::get<1>(block);
@@ -759,7 +736,7 @@ class MapView : public Object {
 
   const Object* operator[](const std::string& key) const {
     MapViewItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       if (cur->key_ == key) {
         return cur->value_.get();
       }
@@ -827,7 +804,7 @@ class MapView : public Object {
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     MapViewItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       auto each = cur->value_.get();
       // key seri
       if (map == nullptr) {
@@ -877,7 +854,7 @@ class MapView : public Object {
     buf.append(prefix + ObjectTypeToStr(GetType()) + "[ " + std::to_string(Size()) + " ]");
     std::string key_prefix(level + 1, ' ');
     MapViewItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       buf.push_back('\n');
       buf.append(key_prefix + "< " + std::string(cur->key_) + " > : ");
       buf.push_back('\n');
@@ -892,14 +869,14 @@ class MapView : public Object {
 
   size_t Size() const { return size_; }
 
-  void Clear() { 
+  void Clear() {
     last_node_ = nullptr;
     size_ = 0;
-   }
+  }
 
   unique_ptr<Object> Get(const std::string& key) {
     MapViewItem* cur = last_node_;
-    while(cur != nullptr) {
+    while (cur != nullptr) {
       if (cur->key_ == key) {
         return std::move(cur->value_);
       }

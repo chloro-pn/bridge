@@ -1,9 +1,9 @@
 #pragma once
 
+#include <cstdlib>
 #include <memory>
 #include <utility>
 #include <vector>
-#include <cstdlib>
 
 #include "bridge/variant.h"
 
@@ -17,9 +17,7 @@ struct Block {
     }
   }
 
-  Block(Block&& other) : top_(other.top_), capacity_(other.capacity_), buf_(other.buf_) {
-    other.buf_ = nullptr;
-  }
+  Block(Block&& other) : top_(other.top_), capacity_(other.capacity_), buf_(other.buf_) { other.buf_ = nullptr; }
 
   bool Full() const noexcept { return top_ == capacity_; }
 

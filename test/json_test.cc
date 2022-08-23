@@ -1,10 +1,10 @@
-#include "rapidjson/document.h"
 #include "gtest/gtest.h"
+#include "rapidjson/document.h"
 
 TEST(json, rapidjson) {
   rapidjson::Document d;
   d.SetObject();
-  for(int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 10; ++i) {
     rapidjson::Value v;
     v.SetUint(i);
     d.AddMember("key", v, d.GetAllocator());
