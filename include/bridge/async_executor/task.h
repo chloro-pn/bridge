@@ -53,7 +53,7 @@ inline Lazy<std::tuple<Array::ArrayItem*, Array::ArrayItem*, size_t>> ParseArray
         offset = w.currentIndex();
       } else {
         assert(type == ObjectType::Map);
-        auto parse_result = co_await ParseMap(content, si, sm, w.currentIndex(), false);
+        auto parse_result = co_await ParseMap(content, si, sm, w.currentIndex(), parse_ref);
         parsed_node = std::move(parse_result.v);
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
