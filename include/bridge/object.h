@@ -299,7 +299,120 @@ class DataView : public Object {
   uint8_t data_type_;
 };
 
-class Array : public Object {
+// CRTP. 复用逻辑
+template <typename Derived>
+class BridgeContainerType {
+ public:
+  BridgeContainerType() = default;
+
+ protected:
+  /*
+   * @brief 通过Derived.Size()获取容器中子元素的个数并序列化
+   */
+  template <typename Outer>
+  requires bridge_outer_concept<Outer>
+  void seri_count(Outer& outer) const {
+    uint32_t count = static_cast<const Derived*>(this)->Size();
+    seriLength(count, outer);
+  }
+  
+  /*
+   * @brief 如果si != nullptr，向si申请一个id(默认为0)并序列化到outer中。
+   * @return 申请的id或者0。
+   */
+  template <typename Outer>
+  requires bridge_outer_concept<Outer>
+  uint32_t seri_split_id(Outer& outer, SplitInfo* si) const {
+    uint32_t split_info_id = 0;
+    if (si != nullptr) {
+      split_info_id = si->RequestId();
+    }
+    seriLength(split_info_id, outer);
+    return split_info_id;
+  }
+
+  /*
+   * @brief 向outer中序列化一个字符串，如果map != nullptr，则将其注册成为id
+   */
+  template <typename Outer>
+  requires bridge_outer_concept<Outer>
+  void seri_key(Outer& outer, StringMap* map, std::string_view key) const {
+    if (map == nullptr) {
+      uint32_t key_length = key.size();
+      seriLength(key_length, outer);
+      outer.append(key);
+    } else {
+      uint32_t id = map->RegisterIdFromString(key);
+      seriLength(id, outer);
+    }
+  }
+
+  /*
+   * @brief 从inner的offset位置开始解析一个key，如果map != nullptr则解析一个id并从map中获取对应的key。
+   */
+  template <typename Inner>
+  requires bridge_inner_concept<Inner>
+  std::string_view parse_key(const Inner& inner, size_t& offset, const StringMap* map) const {
+    std::string_view key_view;
+    if (map == nullptr) {
+      uint64_t key_length = parseLength(inner, offset);
+      key_view = std::string_view(inner.curAddr(), key_length);
+      inner.skip(key_length);
+      offset += key_length;
+    } else {
+      uint32_t id = parseLength(inner, offset);
+      key_view = map->GetStr(id);
+    }
+    return key_view;
+  }
+
+  /*
+  * @brief 序列化节点cur，如果节点本身是需要分片的，则将节点类型的最高位置1。
+  */
+  template <typename Outer>
+  requires bridge_outer_concept<Outer>
+  void seri_child(Outer& outer, StringMap* map, SplitInfo* si, const Object* cur) const {
+    size_t object_type_position = outer.size();
+    seriObjectType(cur->GetType(), outer);
+    bool child_need_to_split = false;
+    cur->valueSeri(outer, map, si, child_need_to_split);
+    if (child_need_to_split == true) {
+      outer[object_type_position] |= 0x80;
+      assert(cur->value_->GetType() != ObjectType::Data);
+    }
+  }
+
+  /*
+   * @brief 从inner的offset位置开始反序列化一个节点
+   */
+  template <typename Inner>
+  requires bridge_inner_concept<Inner>
+  unique_ptr<Object> parse_child(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
+    ObjectType type = parseObjectType(inner, offset);
+    auto v = ObjectFactory(type, parse_ref);
+    v->valueParse(inner, offset, parse_ref, map);
+    return v;
+  }
+
+  /*
+   * @brief 根据block_size的信息选择是否将split_info_id和block_size注册到si中。
+   *   - 如果分块大于1个，则需要注册分块信息
+   *   - 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
+   *   - 如果分块为0个（空数组）,不注册分块信息
+   * @node 如果不注册的话，申请的split_info_id就浪费了，无法归还给si。
+   */
+  bool register_split_info(uint32_t split_info_id, std::vector<uint32_t>&& block_size, SplitInfo* si) const {
+    if (si != nullptr) {
+      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
+        si->RegisterSplitInfo(split_info_id, std::move(block_size));
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+class Array : public Object, public BridgeContainerType<Array> {
  public:
   struct ArrayItem {
     unique_ptr<Object> node_;
@@ -375,16 +488,7 @@ class Array : public Object {
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
     for (uint64_t i = 0; i < count; ++i) {
-      ObjectType type = parseObjectType(inner, offset);
-      if (inner.outOfRange()) {
-        return;
-      }
-      auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref, map);
-      if (inner.outOfRange()) {
-        return;
-      }
-
+      auto v = parse_child(inner, offset, parse_ref, map);
       ArrayItem* tmp = ArrayItem::GetFromObjectPool();
       tmp->node_ = std::move(v);
       if (head == nullptr) {
@@ -402,26 +506,13 @@ class Array : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = Size();
-    seriLength(count, outer);
-    uint32_t split_info_id = 0;
-    if (si != nullptr) {
-      split_info_id = si->RequestId();
-    }
-    seriLength(split_info_id, outer);
+    seri_count(outer);
+    uint32_t split_info_id = seri_split_id(outer, si);
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     ArrayItem* cur = last_child_;
     while (cur != nullptr) {
-      auto each = cur->node_.get();
-      size_t object_type_position = outer.size();
-      seriObjectType(each->GetType(), outer);
-      bool child_need_to_split = false;
-      each->valueSeri(outer, map, si, child_need_to_split);
-      if (child_need_to_split == true) {
-        assert(each->GetType() != ObjectType::Data);
-        outer[object_type_position] |= 0x80;
-      }
+      seri_child(outer, map, si, cur->node_.get());
       if (si != nullptr) {
         size_t tmp_size = outer.size();
         // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
@@ -436,16 +527,7 @@ class Array : public Object {
     if (si != nullptr && outer.size() - current_size > 0) {
       block_size.push_back(outer.size() - current_size);
     }
-    if (si != nullptr) {
-      // 如果分块大于1个，则需要注册分块信息
-      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
-      // 如果分块为0个（空数组）,不注册分块信息
-      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
-        si->RegisterSplitInfo(split_info_id, std::move(block_size));
-        need_to_split = true;
-      }
-      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
-    }
+    need_to_split = register_split_info(split_info_id, std::move(block_size), si);
   }
 
   void dump(std::string& buf, int level) const {
@@ -465,7 +547,7 @@ class Array : public Object {
   size_t size_;
 };
 
-class Map : public Object {
+class Map : public Object, public BridgeContainerType<Map> {
  public:
   struct MapItem {
     std::string key_;
@@ -567,40 +649,11 @@ class Map : public Object {
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     for (uint64_t i = 0; i < count; ++i) {
       // parse key
-      std::string_view key_view;
-      if (map == nullptr) {
-        uint64_t key_length = parseLength(inner, offset);
-        if (inner.outOfRange()) {
-          return;
-        }
-        key_view = std::string_view(inner.curAddr(), key_length);
-        inner.skip(key_length);
-        if (inner.outOfRange()) {
-          return;
-        }
-        offset += key_length;
-      } else {
-        uint32_t id = parseLength(inner, offset);
-        if (inner.outOfRange()) {
-          return;
-        }
-        key_view = map->GetStr(id);
-      }
+      std::string_view key_view = parse_key(inner, offset, map);
       // parse value
-      ObjectType type = parseObjectType(inner, offset);
-      if (inner.outOfRange()) {
-        return;
-      }
-      auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref, map);
-      if (inner.outOfRange()) {
-        return;
-      }
+      auto v = parse_child(inner, offset, parse_ref, map);
       Insert(std::string(key_view), std::move(v));
     }
     size_ = static_cast<size_t>(count);
@@ -609,35 +662,15 @@ class Map : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = Size();
-    seriLength(count, outer);
-    uint32_t split_info_id = 0;
-    if (si != nullptr) {
-      split_info_id = si->RequestId();
-    }
-    seriLength(split_info_id, outer);
+    seri_count(outer);
+    uint32_t split_info_id = seri_split_id(outer, si);
+    
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     MapItem* cur = last_node_;
     while (cur != nullptr) {
-      auto each = cur->value_.get();
-      // key seri
-      if (map == nullptr) {
-        uint32_t key_length = cur->key_.size();
-        seriLength(key_length, outer);
-        outer.append(cur->key_);
-      } else {
-        uint32_t id = map->RegisterIdFromString(cur->key_);
-        seriLength(id, outer);
-      }
-      size_t object_type_position = outer.size();
-      seriObjectType(each->GetType(), outer);
-      bool child_need_to_split = false;
-      each->valueSeri(outer, map, si, child_need_to_split);
-      if (child_need_to_split == true) {
-        outer[object_type_position] |= 0x80;
-        assert(each->GetType() != ObjectType::Data);
-      }
+      seri_key(outer, map, cur->key_);
+      seri_child(outer, map, si, cur->value_.get());
       if (si != nullptr) {
         size_t tmp_size = outer.size();
         // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
@@ -652,16 +685,7 @@ class Map : public Object {
     if (si != nullptr && outer.size() - current_size > 0) {
       block_size.push_back(outer.size() - current_size);
     }
-    if (si != nullptr) {
-      // 如果分块大于1个，则需要注册分块信息
-      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
-      // 如果分块为0个（空数组）,不注册分块信息
-      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
-        si->RegisterSplitInfo(split_info_id, std::move(block_size));
-        need_to_split = true;
-      }
-      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
-    }
+    need_to_split = register_split_info(split_info_id, std::move(block_size), si);
   }
 
   void dump(std::string& buf, int level) const {
@@ -685,7 +709,7 @@ class Map : public Object {
   size_t size_;
 };
 
-class MapView : public Object {
+class MapView : public Object, public BridgeContainerType<MapView> {
  public:
   struct MapViewItem {
     std::string_view key_;
@@ -756,36 +780,8 @@ class MapView : public Object {
       return;
     }
     for (uint64_t i = 0; i < count; ++i) {
-      // parse key
-      std::string_view key_view;
-      if (map == nullptr) {
-        uint64_t key_length = parseLength(inner, offset);
-        if (inner.outOfRange()) {
-          return;
-        }
-        key_view = std::string_view(inner.curAddr(), key_length);
-        inner.skip(key_length);
-        if (inner.outOfRange()) {
-          return;
-        }
-        offset += key_length;
-      } else {
-        uint32_t id = parseLength(inner, offset);
-        if (inner.outOfRange()) {
-          return;
-        }
-        key_view = map->GetStr(id);
-      }
-      // parse value
-      ObjectType type = parseObjectType(inner, offset);
-      if (inner.outOfRange()) {
-        return;
-      }
-      auto v = ObjectFactory(type, parse_ref);
-      v->valueParse(inner, offset, parse_ref, map);
-      if (inner.outOfRange()) {
-        return;
-      }
+      std::string_view key_view = parse_key(inner, offset, map);
+      auto v = parse_child(inner, offset, parse_ref, map);
       Insert(key_view, std::move(v));
     }
     size_ = static_cast<size_t>(count);
@@ -794,35 +790,15 @@ class MapView : public Object {
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
-    uint32_t count = Size();
-    seriLength(count, outer);
-    uint32_t split_info_id = 0;
-    if (si != nullptr) {
-      split_info_id = si->RequestId();
-    }
-    seriLength(split_info_id, outer);
+    seri_count(outer);
+    uint32_t split_info_id = seri_split_id(outer, si);
+
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     MapViewItem* cur = last_node_;
     while (cur != nullptr) {
-      auto each = cur->value_.get();
-      // key seri
-      if (map == nullptr) {
-        uint32_t key_length = cur->key_.size();
-        seriLength(key_length, outer);
-        outer.append(&cur->key_[0], cur->key_.size());
-      } else {
-        uint32_t id = map->RegisterIdFromString(cur->key_);
-        seriLength(id, outer);
-      }
-      size_t object_type_position = outer.size();
-      seriObjectType(each->GetType(), outer);
-      bool child_need_to_split = false;
-      each->valueSeri(outer, map, si, child_need_to_split);
-      if (child_need_to_split == true) {
-        outer[object_type_position] |= 0x80;
-        assert(each->GetType() != ObjectType::Data);
-      }
+      seri_key(outer, map, cur->key_);
+      seri_child(outer, map, si, cur->value_.get());
       if (si != nullptr) {
         size_t tmp_size = outer.size();
         // 每当子节点序列化大小超过split_block_size字节，则生成一个分片
@@ -837,16 +813,7 @@ class MapView : public Object {
     if (si != nullptr && outer.size() - current_size > 0) {
       block_size.push_back(outer.size() - current_size);
     }
-    if (si != nullptr) {
-      // 如果分块大于1个，则需要注册分块信息
-      // 如果分块等于1个，检查分块是否大于临界值，如果大于，则注册分块信息，否则不注册分块信息。
-      // 如果分块为0个（空数组）,不注册分块信息
-      if (block_size.empty() == false && (block_size.size() >= 2 || block_size.back() >= split_block_size)) {
-        si->RegisterSplitInfo(split_info_id, std::move(block_size));
-        need_to_split = true;
-      }
-      // 如果不注册的话，通过split_info_id找不到对应的block_info_信息，本地解析
-    }
+    need_to_split = register_split_info(split_info_id, std::move(block_size), si);
   }
 
   void dump(std::string& buf, int level) const {
@@ -1265,7 +1232,9 @@ inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
   ret.reserve(1024);
   // 首部8个字节存储不包含辅助结构的总大小，这里先占位
   ret.resize(sizeof(uint64_t));
+  // serialize seri type.
   ret.push_back(SeriTypeToChar(SeriType::REPLACE));
+
   size_t split_flag_position = ret.size();
   ret.push_back(char(0));
   bool need_to_split = false;
@@ -1290,6 +1259,9 @@ inline std::string Serialize(unique_ptr<Object>&& obj) {
   }
 }
 
+/*
+ * @brief 解析的调度器基类，负责从序列化数据中解析并初始化必要的元信息（total_size、seri type、string_map和split_info等）
+ */
 class Scheduler {
  public:
   explicit Scheduler(const std::string& content) : content_(content), use_string_map_(false), total_size_(0) {
@@ -1359,6 +1331,9 @@ class Scheduler {
   }
 };
 
+/*
+ * @brief 递归解析，默认的解析方式
+ */
 class NormalScheduler : public Scheduler {
  public:
   NormalScheduler(const std::string& content, bool parse_ref) : Scheduler(content), parse_ref_(parse_ref) {}
@@ -1385,6 +1360,9 @@ class NormalScheduler : public Scheduler {
   bool parse_ref_;
 };
 
+/*
+ * @brief 通过协程(c++20 coroutine) + thread_pool并行解析
+ */
 class CoroutineScheduler : public Scheduler {
  public:
   CoroutineScheduler(const std::string& content, bool parse_ref, size_t wn)
@@ -1412,6 +1390,7 @@ struct ParseOption {
 
 unique_ptr<Object> Parse(const std::string& content, ParseOption po = ParseOption());
 
+// todo：重构
 inline void ClearResource() {
   ObjectPool<Data>::Instance().Clear();
   ObjectPool<DataView>::Instance().Clear();
