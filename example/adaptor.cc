@@ -10,14 +10,15 @@
 using namespace bridge;
 
 int main() {
+  BridgePool bp;
   std::unordered_map<std::string, std::vector<uint32_t>> id_map;
   id_map["row1"] = {0, 1, 2};
   id_map["row2"] = {3, 4, 5};
   id_map["row3"] = {6, 7, 8};
-  auto v = adaptor(id_map);
-  std::string buf = Serialize<SeriType::NORMAL>(std::move(v));
+  auto v = adaptor(id_map, bp);
+  std::string buf = Serialize<SeriType::NORMAL>(std::move(v), bp);
   // ...
-  auto root = Parse(buf);
+  auto root = Parse(buf, bp);
   ObjectWrapper w(root.get());
   auto it = w.GetIteraotr().value();
   for (; it.Valid(); ++it) {
@@ -28,6 +29,5 @@ int main() {
     }
     std::cout << std::endl;
   }
-  ClearResource();
   return 0;
 }

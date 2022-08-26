@@ -10,8 +10,9 @@
 using namespace bridge;
 
 TEST(object, adaptor) {
+  BridgePool bp;
   std::vector<int32_t> ints{1, 2, 4, 3};
-  auto v = adaptor(ints);
+  auto v = adaptor(ints, bp);
   EXPECT_EQ(v->GetType(), ObjectType::Array);
   auto arr = AsArray(v);
   EXPECT_EQ(arr->Size(), 4);
@@ -22,7 +23,7 @@ TEST(object, adaptor) {
   std::unordered_map<std::string, int32_t> maps;
   maps["key1"] = 2;
   maps["key2"] = 1;
-  v = adaptor(maps);
+  v = adaptor(maps, bp);
   EXPECT_EQ(v->GetType(), ObjectType::Map);
   auto map = AsMap(v);
   EXPECT_EQ(map->Size(), 2);
@@ -34,7 +35,7 @@ TEST(object, adaptor) {
   std::unordered_map<std::string, uint32_t> tmp;
   tmp.insert({"key2", 24});
   cc["key1"].push_back(tmp);
-  v = adaptor(cc);
+  v = adaptor(cc, bp);
   ObjectWrapper wrapper(v.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
   EXPECT_EQ(wrapper["key1"][0]["key2"].Get<uint32_t>().value(), 24);

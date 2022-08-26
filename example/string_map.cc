@@ -10,6 +10,7 @@
 using namespace bridge;
 
 int main() {
+  BridgePool bp;
   std::vector<std::unordered_map<std::string, std::string>> info;
   std::vector<std::string> methods = {
       "get_file_from_db",
@@ -35,20 +36,20 @@ int main() {
   }
   auto content_json = j.dump();
   std::cout << "serialize with json use " << content_json.size() << " bytes" << std::endl;
-  auto v = adaptor(info);
-  auto content1 = Serialize(std::move(v));
+  auto v = adaptor(info, bp);
+  auto content1 = Serialize(std::move(v), bp);
   std::cout << "serialize without string_map use " << content1.size() << " bytes" << std::endl;
 
-  auto v2 = adaptor(info);
-  auto content2 = Serialize<SeriType::REPLACE>(std::move(v2));
+  auto v2 = adaptor(info, bp);
+  auto content2 = Serialize<SeriType::REPLACE>(std::move(v2), bp);
   std::cout << "serialize with string_map use " << content2.size() << " bytes" << std::endl;
 
   std::cout << "json / string_map == " << double(content_json.size()) / content2.size() << std::endl;
 
   std::cout << "no_string_map / string_map == " << double(content1.size()) / content2.size() << std::endl;
 
-  auto root = Parse(content1);
-  auto root2 = Parse(content2);
+  auto root = Parse(content1, bp);
+  auto root2 = Parse(content2, bp);
   ObjectWrapper w1(root.get());
   ObjectWrapper w2(root2.get());
   if (w1.Size() != w2.Size()) {

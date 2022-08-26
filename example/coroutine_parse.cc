@@ -49,30 +49,30 @@ struct MetricInfo {
   std::vector<std::string> metric_names_;
   std::vector<uint32_t> metric_types_;
 
-  bridge::unique_ptr<bridge::MapView> ToBridge() const {
-    auto ret = bridge::map_view();
-    auto dimensions = bridge::map_view();
+  bridge::unique_ptr<bridge::MapView> ToBridge(bridge::BridgePool& bp) const {
+    auto ret = bp.map_view();
+    auto dimensions = bp.map_view();
     for (auto& each : dimension_) {
-      dimensions->Insert(each.first, bridge::data_view(each.second));
+      dimensions->Insert(each.first, bp.data_view(each.second));
     }
     ret->Insert("dimension", std::move(dimensions));
-    ret->Insert("timepoint", bridge::data_view(time_point_));
+    ret->Insert("timepoint", bp.data_view(time_point_));
 
-    auto name = bridge::array();
+    auto name = bp.array();
     for (auto& each : metric_names_) {
-      name->Insert(bridge::data_view(each));
+      name->Insert(bp.data_view(each));
     }
     ret->Insert("metric_names", std::move(name));
 
-    auto type = bridge::array();
+    auto type = bp.array();
     for (auto& each : metric_types_) {
-      type->Insert(bridge::data_view(each));
+      type->Insert(bp.data_view(each));
     }
     ret->Insert("metric_types", std::move(type));
 
-    auto values = bridge::array();
+    auto values = bp.array();
     for (auto& each : values_) {
-      values->Insert(bridge::data_view(each));
+      values->Insert(bp.data_view(each));
     }
     ret->Insert("values", std::move(values));
     return ret;
@@ -111,10 +111,10 @@ std::vector<MetricInfo> initMetricInfo() {
   return ret;
 }
 
-bridge::unique_ptr<bridge::Array> Construct(const std::vector<MetricInfo>& info) {
-  auto array = bridge::array();
+bridge::unique_ptr<bridge::Array> Construct(const std::vector<MetricInfo>& info, bridge::BridgePool& bp) {
+  auto array = bp.array();
   for (auto& each : info) {
-    auto map_info = each.ToBridge();
+    auto map_info = each.ToBridge(bp);
     array->Insert(std::move(map_info));
   }
   return array;
@@ -173,13 +173,14 @@ std::string benchmark_rapidjson(const std::vector<MetricInfo>& info) {
 int main() {
   bridge::ThreadPool::GetOrConstructInstance(6);
   bridge::Timer timer;
+  bridge::BridgePool bp;
   auto info = initMetricInfo();
   timer.Start();
-  auto root = Construct(info);
+  auto root = Construct(info, bp);
   auto tmp = timer.End();
   std::cout << "construct use " << tmp << " ms" << std::endl;
   timer.Start();
-  std::string content = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(root));
+  std::string content = bridge::Serialize<bridge::SeriType::NORMAL>(std::move(root), bp);
   tmp = timer.End();
   std::cout << "serialize use " << tmp << " ms"
             << ", size == " << content.size() << std::endl;
@@ -193,7 +194,8 @@ int main() {
   po.parse_ref = true;
   po.type = bridge::SchedulerType::Coroutine;
   po.worker_num_ = 4;
-  auto root2 = bridge::Parse(content, po);
+  auto root2 = bridge::Parse(content, bp, po);
+  bp.Clear();
   tmp = timer.End();
   bridge::ObjectWrapper w(root2.get());
   std::cout << "bridge's coroutine parse use " << tmp << " ms" << std::endl;
@@ -201,7 +203,7 @@ int main() {
   timer.Start();
   po.parse_ref = true;
   po.type = bridge::SchedulerType::Normal;
-  auto root1 = bridge::Parse(content, po);
+  auto root1 = bridge::Parse(content, bp, po);
   assert(root1->GetType() == bridge::ObjectType::Array);
   tmp = timer.End();
   std::cout << "bridge's normal parse use " << tmp << " ms" << std::endl;

@@ -15,29 +15,30 @@ TEST(async_simple, basic) {
 }
 
 TEST(async_simple, task) {
-  auto arr = map();
-  auto a1 = array();
+  BridgePool bp;
+  auto arr = bp.map();
+  auto a1 = bp.array();
   for (size_t i = 0; i < 10000; ++i) {
-    a1->Insert(data("hello" + std::to_string(i)));
+    a1->Insert(bp.data("hello" + std::to_string(i)));
   }
   arr->Insert("arr1", std::move(a1));
 
-  auto a2 = array();
+  auto a2 = bp.array();
   for (size_t i = 0; i < 10000; ++i) {
-    a2->Insert(data(uint32_t(i)));
+    a2->Insert(bp.data(uint32_t(i)));
   }
   ObjectWrapper w0(a2.get());
   for (size_t i = 0; i < 10000; ++i) {
     EXPECT_EQ(w0[i].Get<uint32_t>().value(), i);
   }
   arr->Insert("arr2", std::move(a2));
-  auto ret = Serialize<SeriType::REPLACE>(std::move(arr));
+  auto ret = Serialize<SeriType::REPLACE>(std::move(arr), bp);
 
   ParseOption op;
   op.parse_ref = false;
   op.worker_num_ = 4;
   op.type = SchedulerType::Coroutine;
-  auto new_arr = Parse(ret, op);
+  auto new_arr = Parse(ret, bp, op);
   ObjectWrapper w(new_arr.get());
   EXPECT_EQ(w.GetType(), ObjectType::Map);
   EXPECT_EQ(w.Size(), 2);

@@ -105,26 +105,27 @@ static void BM_Rapidjson_Parse(benchmark::State& state) {
 
 template <bridge::SeriType seri_type>
 std::string benchmark_bridge() {
-  auto array = bridge::array();
+  bridge::BridgePool bp;
+  auto array = bp.array();
   for (auto& each : info) {
-    auto map = bridge::map_view();
+    auto map = bp.map_view();
     for (auto& each_record : each) {
       const std::string& key = each_record.first;
       const std::string& value = each_record.second;
-      map->Insert(key, bridge::data_view(value));
+      map->Insert(key, bp.data_view(value));
     }
     array->Insert(std::move(map));
   }
   for (auto& each : info2) {
-    auto map = bridge::map_view();
+    auto map = bp.map_view();
     for (auto& each_record : each) {
       const std::string& key = each_record.first;
       const uint64_t& id = each_record.second;
-      map->Insert(key, bridge::data(id));
+      map->Insert(key, bp.data(id));
     }
     array->Insert(std::move(map));
   }
-  std::string ret = bridge::Serialize<seri_type>(std::move(array));
+  std::string ret = bridge::Serialize<seri_type>(std::move(array), bp);
   // bridge::ClearResource();
   return ret;
 }
@@ -140,16 +141,18 @@ const std::string& GetBridgeReplaceStr() {
 }
 
 void bridge_parse() {
+  bridge::BridgePool bp;
   bridge::ParseOption po;
   po.parse_ref = true;
-  auto root = bridge::Parse(GetBridgeStr(), po);
+  auto root = bridge::Parse(GetBridgeStr(), bp, po);
   // bridge::ClearResource();
 }
 
 void bridge_parse_replace() {
+  bridge::BridgePool bp;
   bridge::ParseOption po;
   po.parse_ref = true;
-  auto root = bridge::Parse(GetBridgeReplaceStr(), po);
+  auto root = bridge::Parse(GetBridgeReplaceStr(), bp, po);
   // bridge::ClearResource();
 }
 

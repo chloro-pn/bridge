@@ -17,10 +17,11 @@ TEST(dump, data) {
 }
 
 TEST(dump, array) {
-  Array arr;
-  arr.Insert(data("test_str"));
-  arr.Insert(data(int32_t(124)));
-  arr.Insert(data(std::vector<char>{'a', 'b'}));
+  BridgePool bp;
+  Array arr(bp);
+  arr.Insert(bp.data("test_str"));
+  arr.Insert(bp.data(int32_t(124)));
+  arr.Insert(bp.data(std::vector<char>{'a', 'b'}));
   std::string buf;
   arr.dump(buf, 0);
   EXPECT_EQ(buf, R"(Array[ 3 ]
@@ -30,11 +31,12 @@ TEST(dump, array) {
 }
 
 TEST(dump, map) {
-  Map map;
-  map.Insert("key1", data("hello"));
-  map.Insert("key2", data(int32_t(25)));
-  auto arr = array();
-  arr->Insert(data("world"));
+  BridgePool bp;
+  Map map(bp);
+  map.Insert("key1", bp.data("hello"));
+  map.Insert("key2", bp.data(int32_t(25)));
+  auto arr = bp.array();
+  arr->Insert(bp.data("world"));
   map.Insert("key3", std::move(arr));
   std::string buf;
   map.dump(buf, 0);

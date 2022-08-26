@@ -8,6 +8,44 @@
 #include "bridge/variant.h"
 
 namespace bridge {
+
+struct DestructorDispatchBase {
+  using destruct_dispatch_flag = void;
+};
+
+struct RequireDestruct : public DestructorDispatchBase {
+  using require_destruct = void;
+};
+
+struct DontRequireDestruct : public DestructorDispatchBase {
+  using dont_require_destruct = void;
+};
+
+template <typename T>
+concept object_pool_type = requires {
+  typename T::destruct_dispatch_flag;
+};
+
+template <typename T>
+concept require_destruct = requires {
+  requires object_pool_type<T>;
+  typename T::require_destruct;
+};
+
+template <typename T> requires require_destruct<T>
+void destructor_proxy(char* buf, size_t top) {
+  for (size_t i = 0; i < top; ++i) {
+    T* obj = reinterpret_cast<T*>(buf + i * sizeof(T));
+    obj->~T();
+  }
+}
+
+// do nothing
+template <typename T>
+void destructor_proxy(char* buf, size_t top) {
+
+}
+
 template <typename T>
 struct Block {
  public:
@@ -18,6 +56,9 @@ struct Block {
   }
 
   Block(Block&& other) : top_(other.top_), capacity_(other.capacity_), buf_(other.buf_) { other.buf_ = nullptr; }
+
+  Block(const Block&) = delete;
+  Block& operator=(const Block&) = delete;
 
   bool Full() const noexcept { return top_ == capacity_; }
 
@@ -36,10 +77,7 @@ struct Block {
     if (buf_ == nullptr) {
       return;
     }
-    for (size_t i = 0; i < top_; ++i) {
-      T* obj = reinterpret_cast<T*>(buf_ + i * sizeof(T));
-      obj->~T();
-    }
+    destructor_proxy<T>(buf_, top_);
     std::free(buf_);
     buf_ = nullptr;
     top_ = 0;
@@ -61,6 +99,9 @@ class ObjectPool {
  public:
   ObjectPool() { blocks_.reserve(4); }
 
+  ObjectPool(ObjectPool&&) = default;
+  ObjectPool& operator=(ObjectPool&&) = default;
+
   ~ObjectPool() { Clear(); }
 
   void Clear() { blocks_.clear(); }
@@ -76,9 +117,11 @@ class ObjectPool {
     return blocks_.back().Alloc(std::forward<Args>(args)...);
   }
 
-  static ObjectPool& Instance() {
-    static thread_local ObjectPool obj;
-    return obj;
+  void Merge(ObjectPool&& other) {
+    for(auto& each : other.blocks_) {
+      blocks_.emplace_back(std::move(each));
+    }
+    other.blocks_.clear();
   }
 
  private:

@@ -7,14 +7,13 @@
 using namespace bridge;
 
 TEST(object, factory) {
-  auto v = ObjectFactory(ObjectType::Data);
+  BridgePool bp;
+  auto v = bp.data();
   EXPECT_EQ(v->GetType(), ObjectType::Data);
-  v = ObjectFactory(ObjectType::Map);
-  EXPECT_EQ(v->GetType(), ObjectType::Map);
-  v = ObjectFactory(ObjectType::Array);
-  EXPECT_EQ(v->GetType(), ObjectType::Array);
-  v = ObjectFactory(ObjectType::Invalid);
-  EXPECT_EQ(v, nullptr);
+  auto v2 = bp.map();
+  EXPECT_EQ(v2->GetType(), ObjectType::Map);
+  auto v3 = bp.array();
+  EXPECT_EQ(v3->GetType(), ObjectType::Array);
 }
 
 TEST(object, data) {
@@ -89,12 +88,13 @@ TEST(object, data_view) {
 }
 
 TEST(object, array) {
-  Array arr;
+  BridgePool bp;
+  Array arr(bp);
   EXPECT_EQ(arr.GetType(), ObjectType::Array);
   EXPECT_EQ(arr[1], nullptr);
   EXPECT_EQ(arr.Size(), 0);
-  arr.Insert(ValueFactory<Data>(int32_t(32)));
-  arr.Insert(ValueFactory<Data>("chloro"));
+  arr.Insert(bp.data(int32_t(32)));
+  arr.Insert(bp.data("chloro"));
   EXPECT_EQ(arr.Size(), 2);
   auto v = arr[0];
   EXPECT_EQ(v->GetType(), ObjectType::Data);
@@ -103,12 +103,13 @@ TEST(object, array) {
 }
 
 TEST(object, map) {
-  Map map;
+  BridgePool bp;
+  Map map(bp);
   EXPECT_EQ(map.GetType(), ObjectType::Map);
   EXPECT_EQ(map["not_exist"], nullptr);
   EXPECT_EQ(map.Size(), 0);
-  map.Insert("key1", ValueFactory<Data>("value1"));
-  map.Insert("key2", ValueFactory<Data>(int32_t(10)));
+  map.Insert("key1", bp.data("value1"));
+  map.Insert("key2", bp.data(int32_t(10)));
   EXPECT_EQ(map.Size(), 2);
   auto v = map["key1"];
   EXPECT_EQ(v->GetType(), ObjectType::Data);

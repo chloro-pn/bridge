@@ -51,9 +51,71 @@ class Object {
   bool ref_type_;
 };
 
-unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref = false);
+class Data;
+class DataView;
+class Array;
+class ArrayItem;
+class Map;
+class MapItem;
+class MapView;
+class MapViewItem;
 
-class Data : public Object {
+class BridgePool {
+ public:
+  BridgePool();
+
+  BridgePool(const BridgePool&) = delete;
+
+  BridgePool(BridgePool&&) = default;
+
+  BridgePool& operator=(BridgePool&&) = default;
+  BridgePool& operator=(const BridgePool&) = delete;
+
+  void Merge(BridgePool&& other);
+
+  void Clear() {
+    data_pool_.Clear();
+    data_view_pool_.Clear();
+    array_pool_.Clear();
+    array_item_pool_.Clear();
+    map_pool_.Clear();
+    map_view_pool_.Clear();
+    map_item_pool_.Clear();
+    map_view_item_pool_.Clear();
+  }
+
+  template <typename... Args>
+  unique_ptr<Data> data(Args&&... args);
+
+  template <typename... Args>
+  unique_ptr<DataView> data_view(Args&&... args);
+
+  unique_ptr<Array> array();
+
+  ArrayItem* array_item();
+
+  unique_ptr<Map> map();
+
+  MapItem* map_item();
+
+  unique_ptr<MapView> map_view();
+
+  MapViewItem* map_view_item();
+
+  unique_ptr<Object> object_factory(ObjectType type, bool parse_ref);
+
+ private:
+  ObjectPool<Data> data_pool_;
+  ObjectPool<DataView> data_view_pool_;
+  ObjectPool<Array> array_pool_;
+  ObjectPool<ArrayItem> array_item_pool_;
+  ObjectPool<Map> map_pool_;
+  ObjectPool<MapItem> map_item_pool_;
+  ObjectPool<MapView> map_view_pool_;
+  ObjectPool<MapViewItem> map_view_item_pool_;
+};
+
+class Data : public Object, public RequireDestruct {
  public:
   // 默认构造函数，Data处于不合法状态
   Data() : Object(ObjectType::Data, false), data_type_(BRIDGE_INVALID) {}
@@ -187,7 +249,7 @@ class Data : public Object {
   }
 };
 
-class DataView : public Object {
+class DataView : public Object, public DontRequireDestruct {
  public:
   DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID) {}
 
@@ -299,13 +361,18 @@ class DataView : public Object {
   uint8_t data_type_;
 };
 
+class BridgePool;
+
 // CRTP. 复用逻辑
 template <typename Derived>
 class BridgeContainerType {
  public:
-  BridgeContainerType() = default;
+  BridgeContainerType(BridgePool& bp) : bridge_pool_(bp) {
+
+  }
 
  protected:
+  BridgePool& bridge_pool_;
   /*
    * @brief 通过Derived.Size()获取容器中子元素的个数并序列化
    */
@@ -389,7 +456,8 @@ class BridgeContainerType {
   requires bridge_inner_concept<Inner>
   unique_ptr<Object> parse_child(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     ObjectType type = parseObjectType(inner, offset);
-    auto v = ObjectFactory(type, parse_ref);
+    auto v = bridge_pool_.object_factory(type, parse_ref);
+    //auto v = ObjectFactory(type, parse_ref);
     v->valueParse(inner, offset, parse_ref, map);
     return v;
   }
@@ -412,23 +480,19 @@ class BridgeContainerType {
   }
 };
 
-class Array : public Object, public BridgeContainerType<Array> {
+struct ArrayItem : public DontRequireDestruct {
+  unique_ptr<Object> node_;
+  ArrayItem* next_;
+
+  ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {}
+};
+
+
+class Array : public Object, public BridgeContainerType<Array>, public DontRequireDestruct {
  public:
-  struct ArrayItem {
-    unique_ptr<Object> node_;
-    ArrayItem* next_;
+  explicit Array(BridgePool& bp) : Object(ObjectType::Array, false), BridgeContainerType<Array>(bp), last_child_(nullptr), size_(0) {}
 
-    static ArrayItem* GetFromObjectPool() {
-      auto ret = ObjectPool<ArrayItem>::Instance().Alloc();
-      return ret;
-    }
-
-    ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {}
-  };
-
-  Array() : Object(ObjectType::Array, false), last_child_(nullptr), size_(0) {}
-
-  void Merge(const std::tuple<Array::ArrayItem*, Array::ArrayItem*, size_t>& block) {
+  void Merge(const std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
     auto tail = std::get<1>(block);
     auto count = std::get<2>(block);
@@ -442,7 +506,7 @@ class Array : public Object, public BridgeContainerType<Array> {
   }
 
   void Insert(unique_ptr<Object>&& value) {
-    auto node = ArrayItem::GetFromObjectPool();
+    auto node = bridge_pool_.array_item();
     node->node_ = std::move(value);
     if (last_child_ != nullptr) {
       node->next_ = last_child_;
@@ -489,7 +553,7 @@ class Array : public Object, public BridgeContainerType<Array> {
     uint32_t splite_info_id = parseLength(inner, offset);
     for (uint64_t i = 0; i < count; ++i) {
       auto v = parse_child(inner, offset, parse_ref, map);
-      ArrayItem* tmp = ArrayItem::GetFromObjectPool();
+      ArrayItem* tmp = bridge_pool_.array_item();
       tmp->node_ = std::move(v);
       if (head == nullptr) {
         head = tmp;
@@ -547,21 +611,16 @@ class Array : public Object, public BridgeContainerType<Array> {
   size_t size_;
 };
 
-class Map : public Object, public BridgeContainerType<Map> {
+struct MapItem : public DontRequireDestruct {
+  std::string key_;
+  unique_ptr<Object> value_;
+  MapItem* next_;
+
+  MapItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
+};
+
+class Map : public Object, public BridgeContainerType<Map>, public RequireDestruct {
  public:
-  struct MapItem {
-    std::string key_;
-    unique_ptr<Object> value_;
-    MapItem* next_;
-
-    MapItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
-
-    static MapItem* GetFromObjectPool() {
-      auto ret = ObjectPool<MapItem>::Instance().Alloc();
-      return ret;
-    }
-  };
-
   struct MapIterator {
     MapItem* item_;
 
@@ -581,9 +640,9 @@ class Map : public Object, public BridgeContainerType<Map> {
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  Map() : Object(ObjectType::Map, false), last_node_(nullptr), size_(0) {}
+  explicit Map(BridgePool& bp) : Object(ObjectType::Map, false), BridgeContainerType<Map>(bp), last_node_(nullptr), size_(0) {}
 
-  void Merge(const std::tuple<Map::MapItem*, Map::MapItem*, size_t>& block) {
+  void Merge(const std::tuple<MapItem*, MapItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
     auto tail = std::get<1>(block);
     auto count = std::get<2>(block);
@@ -597,7 +656,7 @@ class Map : public Object, public BridgeContainerType<Map> {
   }
 
   void Insert(const std::string& key, unique_ptr<Object>&& value) {
-    auto node = MapItem::GetFromObjectPool();
+    auto node = bridge_pool_.map_item();
     node->key_ = key;
     node->value_ = std::move(value);
     if (last_node_ == nullptr) {
@@ -709,21 +768,16 @@ class Map : public Object, public BridgeContainerType<Map> {
   size_t size_;
 };
 
-class MapView : public Object, public BridgeContainerType<MapView> {
+struct MapViewItem : public DontRequireDestruct {
+  std::string_view key_;
+  unique_ptr<Object> value_;
+  MapViewItem* next_;
+
+  MapViewItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
+};
+
+class MapView : public Object, public BridgeContainerType<MapView>, public DontRequireDestruct {
  public:
-  struct MapViewItem {
-    std::string_view key_;
-    unique_ptr<Object> value_;
-    MapViewItem* next_;
-
-    MapViewItem() : value_(nullptr, object_pool_deleter), next_(nullptr) {}
-
-    static MapViewItem* GetFromObjectPool() {
-      auto ret = ObjectPool<MapViewItem>::Instance().Alloc();
-      return ret;
-    }
-  };
-
   struct MapViewIterator {
     MapViewItem* item_;
 
@@ -743,9 +797,9 @@ class MapView : public Object, public BridgeContainerType<MapView> {
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  MapView() : Object(ObjectType::Map, true), last_node_(nullptr), size_(0) {}
+  explicit MapView(BridgePool& bp) : Object(ObjectType::Map, true), BridgeContainerType<MapView>(bp), last_node_(nullptr), size_(0) {}
 
-  void Merge(const std::tuple<MapView::MapViewItem*, MapView::MapViewItem*, size_t>& block) {
+  void Merge(const std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
     auto tail = std::get<1>(block);
     auto count = std::get<2>(block);
@@ -853,7 +907,7 @@ class MapView : public Object, public BridgeContainerType<MapView> {
   }
 
   void Insert(std::string_view key_view, unique_ptr<Object>&& value) {
-    auto node = MapViewItem::GetFromObjectPool();
+    auto node = bridge_pool_.map_view_item();
     node->key_ = key_view;
     node->value_ = std::move(value);
     if (last_node_ == nullptr) {
@@ -905,54 +959,71 @@ void Object::valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_t
 
 inline void Object::dump(std::string& buf, int level) const { BRIDGE_DISPATCH(dump, const, buf, level) }
 
-template <typename T, typename... Args>
-inline unique_ptr<T> ValueFactory(Args&&... args) {
-  return unique_ptr<T>(ObjectPool<T>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline BridgePool::BridgePool() = default;
+
+inline void BridgePool::Merge(BridgePool&& other) {
+  data_pool_.Merge(std::move(other.data_pool_));
+  data_view_pool_.Merge(std::move(other.data_view_pool_));
+  array_pool_.Merge(std::move(other.array_pool_));
+  array_item_pool_.Merge(std::move(other.array_item_pool_));
+  map_pool_.Merge(std::move(other.map_pool_));
+  map_item_pool_.Merge(std::move(other.map_item_pool_));
+  map_view_pool_.Merge(std::move(other.map_view_pool_));
+  map_view_item_pool_.Merge(std::move(other.map_view_item_pool_));
 }
 
 template <typename... Args>
-inline unique_ptr<Data> data(Args&&... args) {
-  return unique_ptr<Data>(ObjectPool<Data>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline unique_ptr<Data> BridgePool::data(Args&&... args) {
+  return unique_ptr<Data>(data_pool_.Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
 template <typename... Args>
-inline unique_ptr<DataView> data_view(Args&&... args) {
-  return unique_ptr<DataView>(ObjectPool<DataView>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline unique_ptr<DataView> BridgePool::data_view(Args&&... args) {
+  return unique_ptr<DataView>(data_view_pool_.Alloc(std::forward<Args>(args)...), object_pool_deleter);
 }
 
-template <typename... Args>
-inline unique_ptr<Array> array(Args&&... args) {
-  return unique_ptr<Array>(ObjectPool<Array>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline unique_ptr<Array> BridgePool::array() {
+  return unique_ptr<Array>(array_pool_.Alloc(*this), object_pool_deleter);
 }
 
-template <typename... Args>
-inline unique_ptr<Map> map(Args&&... args) {
-  return unique_ptr<Map>(ObjectPool<Map>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline ArrayItem* BridgePool::array_item() {
+  return array_item_pool_.Alloc();
 }
 
-template <typename... Args>
-inline unique_ptr<MapView> map_view(Args&&... args) {
-  return unique_ptr<MapView>(ObjectPool<MapView>::Instance().Alloc(std::forward<Args>(args)...), object_pool_deleter);
+inline unique_ptr<Map> BridgePool::map() {
+  return unique_ptr<Map>(map_pool_.Alloc(*this), object_pool_deleter);
 }
 
-inline unique_ptr<Object> ObjectFactory(ObjectType type, bool parse_ref) {
-  if (type == ObjectType::Data) {
-    if (parse_ref == false) {
-      return ValueFactory<Data>();
-    } else {
-      return ValueFactory<DataView>();
-    }
-  } else if (type == ObjectType::Map) {
-    if (parse_ref == false) {
-      return ValueFactory<Map>();
-    } else {
-      return ValueFactory<MapView>();
-    }
-  } else if (type == ObjectType::Array) {
-    return ValueFactory<Array>();
+inline MapItem* BridgePool::map_item() {
+  return map_item_pool_.Alloc();
+}
+
+inline unique_ptr<MapView> BridgePool::map_view() {
+  return unique_ptr<MapView>(map_view_pool_.Alloc(*this), object_pool_deleter);
+}
+
+inline MapViewItem* BridgePool::map_view_item() {
+  return map_view_item_pool_.Alloc();
+}
+
+inline unique_ptr<Object> BridgePool::object_factory(ObjectType type, bool parse_ref) {
+if (type == ObjectType::Data) {
+  if (parse_ref == false) {
+    return data();
   } else {
-    return unique_ptr<Object>(nullptr, object_pool_deleter);
+    return data_view();
   }
+} else if (type == ObjectType::Map) {
+  if (parse_ref == false) {
+    return map();
+  } else {
+    return map_view();
+  }
+} else if (type == ObjectType::Array) {
+  return array();
+} else {
+  return unique_ptr<Object>(nullptr, object_pool_deleter);
+}
 }
 
 class ObjectWrapper;
@@ -1202,9 +1273,9 @@ inline T ParseSecondary(const std::string& content, size_t& total_size) {
   return ss;
 }
 
-inline std::string SerializeNormal(unique_ptr<Object>&& obj) {
+inline std::string SerializeNormal(unique_ptr<Object>&& obj, BridgePool& bp) {
   SplitInfo sp_info;
-  Map root;
+  Map root(bp);
   root.Insert("root", std::move(obj));
   std::string ret;
   ret.reserve(1024);
@@ -1223,8 +1294,8 @@ inline std::string SerializeNormal(unique_ptr<Object>&& obj) {
   return ret;
 }
 
-inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
-  Map root;
+inline std::string SerializeReplace(unique_ptr<Object>&& obj, BridgePool& bp) {
+  Map root(bp);
   StringMap string_map;
   SplitInfo sp_info;
   root.Insert("root", std::move(obj));
@@ -1251,11 +1322,11 @@ inline std::string SerializeReplace(unique_ptr<Object>&& obj) {
 }
 
 template <SeriType type = SeriType::NORMAL>
-inline std::string Serialize(unique_ptr<Object>&& obj) {
+inline std::string Serialize(unique_ptr<Object>&& obj, BridgePool& bp) {
   if constexpr (type == SeriType::NORMAL) {
-    return SerializeNormal(std::move(obj));
+    return SerializeNormal(std::move(obj), bp);
   } else {
-    return SerializeReplace(std::move(obj));
+    return SerializeReplace(std::move(obj), bp);
   }
 }
 
@@ -1264,7 +1335,7 @@ inline std::string Serialize(unique_ptr<Object>&& obj) {
  */
 class Scheduler {
  public:
-  explicit Scheduler(const std::string& content) : content_(content), use_string_map_(false), total_size_(0) {
+  explicit Scheduler(const std::string& content, BridgePool& bp) : content_(content), use_string_map_(false), total_size_(0), bp_(bp) {
     initFromContent(content);
   }
 
@@ -1290,12 +1361,17 @@ class Scheduler {
 
   bool NeedToSplit() const { return need_to_split_; }
 
+  BridgePool& GetBridgePool() {
+    return bp_;
+  }
+
  private:
   StringMap string_map_;
   SplitInfo split_info_;
   bool use_string_map_;
   bool need_to_split_;
   size_t total_size_;
+  BridgePool& bp_;
 
   void initFromContent(const std::string& content) {
     size_t meta_size = GetMetaSize();
@@ -1336,7 +1412,7 @@ class Scheduler {
  */
 class NormalScheduler : public Scheduler {
  public:
-  NormalScheduler(const std::string& content, bool parse_ref) : Scheduler(content), parse_ref_(parse_ref) {}
+  NormalScheduler(const std::string& content, bool parse_ref, BridgePool& bp) : Scheduler(content, bp), parse_ref_(parse_ref) {}
 
   unique_ptr<Object> Parse() override {
     size_t meta_size = GetMetaSize();
@@ -1345,9 +1421,9 @@ class NormalScheduler : public Scheduler {
     size_t offset = meta_size;
     unique_ptr<Object> root(nullptr, object_pool_deleter);
     if (parse_ref_ == false) {
-      root = ValueFactory<Map>();
+      root = GetBridgePool().map();
     } else {
-      root = ValueFactory<MapView>();
+      root = GetBridgePool().map_view();
     }
     root->valueParse(wrapper, offset, parse_ref_, GetStringMap());
     if (offset != GetTotalSize()) {
@@ -1365,8 +1441,8 @@ class NormalScheduler : public Scheduler {
  */
 class CoroutineScheduler : public Scheduler {
  public:
-  CoroutineScheduler(const std::string& content, bool parse_ref, size_t wn)
-      : Scheduler(content), parse_ref_(parse_ref), worker_num_(wn) {}
+  CoroutineScheduler(const std::string& content, bool parse_ref, size_t wn, BridgePool& bp)
+      : Scheduler(content, bp), parse_ref_(parse_ref), worker_num_(wn) {}
 
   unique_ptr<Object> Parse() override;
 
@@ -1388,15 +1464,5 @@ struct ParseOption {
   size_t worker_num_ = 1;
 };
 
-unique_ptr<Object> Parse(const std::string& content, ParseOption po = ParseOption());
-
-// todo：重构
-inline void ClearResource() {
-  ObjectPool<Data>::Instance().Clear();
-  ObjectPool<DataView>::Instance().Clear();
-  ObjectPool<Array>::Instance().Clear();
-  ObjectPool<Map>::Instance().Clear();
-  ObjectPool<MapView>::Instance().Clear();
-}
-
+unique_ptr<Object> Parse(const std::string& content, BridgePool& bp, ParseOption po = ParseOption());
 }  // namespace bridge
