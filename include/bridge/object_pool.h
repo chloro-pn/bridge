@@ -32,7 +32,8 @@ concept require_destruct = requires {
   typename T::require_destruct;
 };
 
-template <typename T> requires require_destruct<T>
+template <typename T>
+requires require_destruct<T>
 void destructor_proxy(char* buf, size_t top) {
   for (size_t i = 0; i < top; ++i) {
     T* obj = reinterpret_cast<T*>(buf + i * sizeof(T));
@@ -42,9 +43,7 @@ void destructor_proxy(char* buf, size_t top) {
 
 // do nothing
 template <typename T>
-void destructor_proxy(char* buf, size_t top) {
-
-}
+void destructor_proxy(char* buf, size_t top) {}
 
 template <typename T>
 struct Block {
@@ -118,7 +117,7 @@ class ObjectPool {
   }
 
   void Merge(ObjectPool&& other) {
-    for(auto& each : other.blocks_) {
+    for (auto& each : other.blocks_) {
       blocks_.emplace_back(std::move(each));
     }
     other.blocks_.clear();

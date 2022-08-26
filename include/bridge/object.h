@@ -367,9 +367,7 @@ class BridgePool;
 template <typename Derived>
 class BridgeContainerType {
  public:
-  BridgeContainerType(BridgePool& bp) : bridge_pool_(bp) {
-
-  }
+  BridgeContainerType(BridgePool& bp) : bridge_pool_(bp) {}
 
  protected:
   BridgePool& bridge_pool_;
@@ -382,14 +380,14 @@ class BridgeContainerType {
     uint32_t count = static_cast<const Derived*>(this)->Size();
     seriLength(count, outer);
   }
-  
+
   /*
    * @brief 如果si != nullptr，向si申请一个id(默认为0)并序列化到outer中。
    * @return 申请的id或者0。
    */
   template <typename Outer>
-  requires bridge_outer_concept<Outer>
-  uint32_t seri_split_id(Outer& outer, SplitInfo* si) const {
+  requires bridge_outer_concept<Outer> uint32_t seri_split_id(Outer& outer, SplitInfo* si)
+  const {
     uint32_t split_info_id = 0;
     if (si != nullptr) {
       split_info_id = si->RequestId();
@@ -418,8 +416,9 @@ class BridgeContainerType {
    * @brief 从inner的offset位置开始解析一个key，如果map != nullptr则解析一个id并从map中获取对应的key。
    */
   template <typename Inner>
-  requires bridge_inner_concept<Inner>
-  std::string_view parse_key(const Inner& inner, size_t& offset, const StringMap* map) const {
+  requires bridge_inner_concept<Inner> std::string_view parse_key(const Inner& inner, size_t& offset,
+                                                                  const StringMap* map)
+  const {
     std::string_view key_view;
     if (map == nullptr) {
       uint64_t key_length = parseLength(inner, offset);
@@ -434,8 +433,8 @@ class BridgeContainerType {
   }
 
   /*
-  * @brief 序列化节点cur，如果节点本身是需要分片的，则将节点类型的最高位置1。
-  */
+   * @brief 序列化节点cur，如果节点本身是需要分片的，则将节点类型的最高位置1。
+   */
   template <typename Outer>
   requires bridge_outer_concept<Outer>
   void seri_child(Outer& outer, StringMap* map, SplitInfo* si, const Object* cur) const {
@@ -453,11 +452,11 @@ class BridgeContainerType {
    * @brief 从inner的offset位置开始反序列化一个节点
    */
   template <typename Inner>
-  requires bridge_inner_concept<Inner>
-  unique_ptr<Object> parse_child(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
+  requires bridge_inner_concept<Inner> unique_ptr<Object> parse_child(const Inner& inner, size_t& offset,
+                                                                      bool parse_ref, const StringMap* map) {
     ObjectType type = parseObjectType(inner, offset);
     auto v = bridge_pool_.object_factory(type, parse_ref);
-    //auto v = ObjectFactory(type, parse_ref);
+    // auto v = ObjectFactory(type, parse_ref);
     v->valueParse(inner, offset, parse_ref, map);
     return v;
   }
@@ -487,10 +486,10 @@ struct ArrayItem : public DontRequireDestruct {
   ArrayItem() : node_(nullptr, object_pool_deleter), next_(nullptr) {}
 };
 
-
 class Array : public Object, public BridgeContainerType<Array>, public DontRequireDestruct {
  public:
-  explicit Array(BridgePool& bp) : Object(ObjectType::Array, false), BridgeContainerType<Array>(bp), last_child_(nullptr), size_(0) {}
+  explicit Array(BridgePool& bp)
+      : Object(ObjectType::Array, false), BridgeContainerType<Array>(bp), last_child_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
@@ -640,7 +639,8 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  explicit Map(BridgePool& bp) : Object(ObjectType::Map, false), BridgeContainerType<Map>(bp), last_node_(nullptr), size_(0) {}
+  explicit Map(BridgePool& bp)
+      : Object(ObjectType::Map, false), BridgeContainerType<Map>(bp), last_node_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<MapItem*, MapItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
@@ -723,7 +723,7 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     seri_count(outer);
     uint32_t split_info_id = seri_split_id(outer, si);
-    
+
     size_t current_size = outer.size();
     std::vector<uint32_t> block_size;
     MapItem* cur = last_node_;
@@ -797,7 +797,8 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  explicit MapView(BridgePool& bp) : Object(ObjectType::Map, true), BridgeContainerType<MapView>(bp), last_node_(nullptr), size_(0) {}
+  explicit MapView(BridgePool& bp)
+      : Object(ObjectType::Map, true), BridgeContainerType<MapView>(bp), last_node_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>& block) {
     auto head = std::get<0>(block);
@@ -986,44 +987,36 @@ inline unique_ptr<Array> BridgePool::array() {
   return unique_ptr<Array>(array_pool_.Alloc(*this), object_pool_deleter);
 }
 
-inline ArrayItem* BridgePool::array_item() {
-  return array_item_pool_.Alloc();
-}
+inline ArrayItem* BridgePool::array_item() { return array_item_pool_.Alloc(); }
 
-inline unique_ptr<Map> BridgePool::map() {
-  return unique_ptr<Map>(map_pool_.Alloc(*this), object_pool_deleter);
-}
+inline unique_ptr<Map> BridgePool::map() { return unique_ptr<Map>(map_pool_.Alloc(*this), object_pool_deleter); }
 
-inline MapItem* BridgePool::map_item() {
-  return map_item_pool_.Alloc();
-}
+inline MapItem* BridgePool::map_item() { return map_item_pool_.Alloc(); }
 
 inline unique_ptr<MapView> BridgePool::map_view() {
   return unique_ptr<MapView>(map_view_pool_.Alloc(*this), object_pool_deleter);
 }
 
-inline MapViewItem* BridgePool::map_view_item() {
-  return map_view_item_pool_.Alloc();
-}
+inline MapViewItem* BridgePool::map_view_item() { return map_view_item_pool_.Alloc(); }
 
 inline unique_ptr<Object> BridgePool::object_factory(ObjectType type, bool parse_ref) {
-if (type == ObjectType::Data) {
-  if (parse_ref == false) {
-    return data();
+  if (type == ObjectType::Data) {
+    if (parse_ref == false) {
+      return data();
+    } else {
+      return data_view();
+    }
+  } else if (type == ObjectType::Map) {
+    if (parse_ref == false) {
+      return map();
+    } else {
+      return map_view();
+    }
+  } else if (type == ObjectType::Array) {
+    return array();
   } else {
-    return data_view();
+    return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
-} else if (type == ObjectType::Map) {
-  if (parse_ref == false) {
-    return map();
-  } else {
-    return map_view();
-  }
-} else if (type == ObjectType::Array) {
-  return array();
-} else {
-  return unique_ptr<Object>(nullptr, object_pool_deleter);
-}
 }
 
 class ObjectWrapper;
@@ -1331,11 +1324,13 @@ inline std::string Serialize(unique_ptr<Object>&& obj, BridgePool& bp) {
 }
 
 /*
- * @brief 解析的调度器基类，负责从序列化数据中解析并初始化必要的元信息（total_size、seri type、string_map和split_info等）
+ * @brief 解析的调度器基类，负责从序列化数据中解析并初始化必要的元信息（total_size、seri
+ * type、string_map和split_info等）
  */
 class Scheduler {
  public:
-  explicit Scheduler(const std::string& content, BridgePool& bp) : content_(content), use_string_map_(false), total_size_(0), bp_(bp) {
+  explicit Scheduler(const std::string& content, BridgePool& bp)
+      : content_(content), use_string_map_(false), total_size_(0), bp_(bp) {
     initFromContent(content);
   }
 
@@ -1361,9 +1356,7 @@ class Scheduler {
 
   bool NeedToSplit() const { return need_to_split_; }
 
-  BridgePool& GetBridgePool() {
-    return bp_;
-  }
+  BridgePool& GetBridgePool() { return bp_; }
 
  private:
   StringMap string_map_;
@@ -1412,7 +1405,8 @@ class Scheduler {
  */
 class NormalScheduler : public Scheduler {
  public:
-  NormalScheduler(const std::string& content, bool parse_ref, BridgePool& bp) : Scheduler(content, bp), parse_ref_(parse_ref) {}
+  NormalScheduler(const std::string& content, bool parse_ref, BridgePool& bp)
+      : Scheduler(content, bp), parse_ref_(parse_ref) {}
 
   unique_ptr<Object> Parse() override {
     size_t meta_size = GetMetaSize();

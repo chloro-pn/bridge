@@ -4,8 +4,6 @@ A high-performance and concise serialization and deserialization Library
 
 [![Softacheck](https://softacheck.com/app/repository/chloro-pn/bridge/badge)](https://softacheck.com/app/repository/chloro-pn/bridge/issues) [![Documentation](https://softacheck.com/app/repository/chloro-pn/bridge/documentation/badge)](https://softacheck.com/app/docs/chloro-pn/bridge/) [![build_test_benchmark](https://github.com/chloro-pn/bridge/actions/workflows/build_and_test_with_bazel.yaml/badge.svg?branch=master)](https://github.com/chloro-pn/bridge/actions/workflows/build_and_test_with_bazel.yaml)
 
-
-
 ### features
 
 * **header-only**
@@ -23,8 +21,14 @@ A high-performance and concise serialization and deserialization Library
 * cpp compiler supporting c++20 (like g++-11)
 * bazel 5.2.0
 
+### doc
+https://slides.com/chloro-pn/serif
+
+
 ### benchmark
 ![image](https://github.com/chloro-pn/bridge/blob/master/png/benchmark.PNG)
+
+
 
 ### example 
 ```c++

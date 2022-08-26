@@ -19,7 +19,8 @@ struct ParseResult {
   size_t offset;
   unique_ptr<Object> v;
   BridgePool bp;
-  ParseResult(size_t os, unique_ptr<Object>&& obj, BridgePool&& bp) noexcept : offset(os), v(std::move(obj)), bp(std::move(bp)) {}
+  ParseResult(size_t os, unique_ptr<Object>&& obj, BridgePool&& bp) noexcept
+      : offset(os), v(std::move(obj)), bp(std::move(bp)) {}
 };
 
 template <typename ItemType>
@@ -33,8 +34,10 @@ inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& s
 inline Lazy<ParseResult> ParseMap(std::string_view content, const SplitInfo& si, const StringMap* sm, size_t os,
                                   bool parse_ref);
 
-inline Lazy<std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>> ParseArrayBlock(
-    std::string_view content, size_t begin, size_t end, const SplitInfo& si, bool parse_ref, const StringMap* sm) {
+inline Lazy<std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>> ParseArrayBlock(std::string_view content,
+                                                                                    size_t begin, size_t end,
+                                                                                    const SplitInfo& si, bool parse_ref,
+                                                                                    const StringMap* sm) {
   BridgePool bp;
   ArrayItem* head = nullptr;
   ArrayItem* tail = nullptr;
@@ -47,7 +50,7 @@ inline Lazy<std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>> ParseArrayBl
     bool need_to_split = false;
     ObjectType type = parseObjectType(w, offset, need_to_split);
     unique_ptr<Object> parsed_node(nullptr, object_pool_deleter);
-    // 这个函数是用来检测即将解析的对象是否需要并行解析
+    // 检测即将解析的对象是否需要并行解析
     if (!need_to_split) {
       auto v = bp.object_factory(type, parse_ref);
       v->valueParse(w, offset, parse_ref, sm);
@@ -115,8 +118,8 @@ inline Lazy<ParseResult> ParseArray(std::string_view content, const SplitInfo& s
 }
 
 inline Lazy<std::tuple<MapItem*, MapItem*, size_t, BridgePool>> ParseMapBlock(std::string_view content, size_t begin,
-                                                                            size_t end, const SplitInfo& si,
-                                                                            const StringMap* sm) {
+                                                                              size_t end, const SplitInfo& si,
+                                                                              const StringMap* sm) {
   BridgePool bp;
   MapItem* head(nullptr);
   MapItem* tail(nullptr);
@@ -176,8 +179,10 @@ inline Lazy<std::tuple<MapItem*, MapItem*, size_t, BridgePool>> ParseMapBlock(st
   co_return std::tuple<MapItem*, MapItem*, size_t, BridgePool>(head, tail, count, std::move(bp));
 }
 
-inline Lazy<std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>> ParseMapViewBlock(
-    std::string_view content, size_t begin, size_t end, const SplitInfo& si, const StringMap* sm) {
+inline Lazy<std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>> ParseMapViewBlock(std::string_view content,
+                                                                                          size_t begin, size_t end,
+                                                                                          const SplitInfo& si,
+                                                                                          const StringMap* sm) {
   BridgePool bp;
   MapViewItem* head = nullptr;
   MapViewItem* tail = nullptr;
