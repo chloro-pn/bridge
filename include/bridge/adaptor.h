@@ -55,7 +55,7 @@ requires bridge_adaptor_type<T> || bridge_type<T>
 inline unique_ptr<Object> adaptor(const std::unordered_map<std::string_view, T>& vec, BridgePool& bp) {
   auto ret = bp.map_view();
   for (const auto& each : vec) {
-    ret->Insert(std::string(each.first), adaptor(each.second, bp));
+    ret->Insert(each.first, adaptor(each.second, bp));
   }
   return ret;
 }

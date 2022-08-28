@@ -11,6 +11,7 @@ using namespace bridge;
 
 TEST(object, adaptor) {
   BridgePool bp;
+
   std::vector<int32_t> ints{1, 2, 4, 3};
   auto v = adaptor(ints, bp);
   EXPECT_EQ(v->GetType(), ObjectType::Array);
@@ -38,5 +39,8 @@ TEST(object, adaptor) {
   v = adaptor(cc, bp);
   ObjectWrapper wrapper(v.get());
   EXPECT_EQ(wrapper.GetType(), ObjectType::Map);
+
+  auto it = wrapper.GetIteraotr().value();
+  EXPECT_EQ(it.GetType(), bridge::ObjectWrapperIterator::IteratorType::MapView);
   EXPECT_EQ(wrapper["key1"][0]["key2"].Get<uint32_t>().value(), 24);
 }

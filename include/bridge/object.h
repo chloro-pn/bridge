@@ -444,7 +444,7 @@ class BridgeContainerType {
     cur->valueSeri(outer, map, si, child_need_to_split);
     if (child_need_to_split == true) {
       outer[object_type_position] |= 0x80;
-      assert(cur->value_->GetType() != ObjectType::Data);
+      assert(cur->GetType() != ObjectType::Data);
     }
   }
 
@@ -604,6 +604,29 @@ class Array : public Object, public BridgeContainerType<Array>, public DontRequi
       cur = cur->next_;
     }
   }
+
+  struct ArrayIterator {
+    ArrayItem* item_;
+
+    explicit ArrayIterator(ArrayItem* it = nullptr) : item_(it) {}
+
+    bool operator==(const ArrayIterator& other) const { return item_ == other.item_; }
+
+    bool operator!=(const ArrayIterator& other) const { return item_ != other.item_; }
+
+    ArrayIterator& operator++() {
+      item_ = item_->next_;
+      return *this;
+    }
+
+    const Object* GetValue() const { return item_->node_.get(); }
+  };
+
+  auto Begin() const { return ArrayIterator(last_child_); }
+
+  auto End() const { return ArrayIterator(nullptr); }
+
+  using iter_type = ArrayIterator;
 
  private:
   ArrayItem* last_child_;
@@ -1021,36 +1044,75 @@ inline unique_ptr<Object> BridgePool::object_factory(ObjectType type, bool parse
 
 class ObjectWrapper;
 
+#define BRIDGE_ITERATOR_DISPATCH
+
 class ObjectWrapperIterator {
  public:
   using holder_type = Map::iter_type;
   using holder_type_view = MapView::iter_type;
+  using holder_type_array = Array::iter_type;
 
-  ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), view_(false) {}
+  enum class IteratorType {
+    Map,
+    MapView,
+    Array,
+    None,
+  };
 
-  ObjectWrapperIterator(holder_type_view iter, holder_type_view end) : iter_view_(iter), end_view_(end), view_(true) {}
+  ObjectWrapperIterator(holder_type iter, holder_type end) : iter_(iter), end_(end), itype_(IteratorType::Map) {}
 
-  bool Valid() const { return view_ == false ? iter_ != end_ : iter_view_ != end_view_; }
+  ObjectWrapperIterator(holder_type_view iter, holder_type_view end)
+      : iter_view_(iter), end_view_(end), itype_(IteratorType::MapView) {}
+
+  ObjectWrapperIterator(holder_type_array iter, holder_type_array end)
+      : iter_array_(iter), end_array_(end), itype_(IteratorType::Array) {}
+
+  bool Valid() const {
+    if (itype_ == IteratorType::Map) {
+      return iter_ != end_;
+    } else if (itype_ == IteratorType::MapView) {
+      return iter_view_ != end_view_;
+    } else if (itype_ == IteratorType::Array) {
+      return iter_array_ != end_array_;
+    }
+    throw std::runtime_error("invalid iterator type on Valid");
+  }
 
   ObjectWrapperIterator& operator++() {
-    if (view_ == false) {
+    if (itype_ == IteratorType::Map) {
       ++iter_;
-    } else {
+    } else if (itype_ == IteratorType::MapView) {
       ++iter_view_;
+    } else if (itype_ == IteratorType::Array) {
+      ++iter_array_;
+    } else {
+      throw std::runtime_error("invalid iterator type on operator++");
     }
     return *this;
   }
 
-  std::string_view GetKey() const { return view_ == false ? iter_.GetKey() : iter_view_.GetKey(); }
+  std::string_view GetKey() const {
+    if (itype_ == IteratorType::Map) {
+      return iter_.GetKey();
+    } else if (itype_ == IteratorType::MapView) {
+      return iter_view_.GetKey();
+    } else {
+      throw std::runtime_error("invalid iterator type on GetKey");
+    }
+  }
 
   ObjectWrapper GetValue() const;
+
+  IteratorType GetType() const { return itype_; }
 
  private:
   holder_type iter_;
   holder_type end_;
   holder_type_view iter_view_;
   holder_type_view end_view_;
-  bool view_;
+  holder_type_array iter_array_;
+  holder_type_array end_array_;
+  IteratorType itype_;
 };
 
 template <typename T>
@@ -1126,8 +1188,12 @@ class ObjectWrapper {
   }
 
   std::optional<ObjectWrapperIterator> GetIteraotr() const {
-    if (obj_ == nullptr || obj_->GetType() != ObjectType::Map) {
+    if (obj_ == nullptr || (obj_->GetType() != ObjectType::Map && obj_->GetType() != ObjectType::Array)) {
       return std::optional<ObjectWrapperIterator>();
+    }
+    if (obj_->GetType() == ObjectType::Array) {
+      auto tmp = static_cast<const Array*>(obj_);
+      return ObjectWrapperIterator(tmp->Begin(), tmp->End());
     }
     if (obj_->IsRefType() == false) {
       auto tmp = static_cast<const Map*>(obj_);
@@ -1183,10 +1249,15 @@ class ObjectWrapper {
 };
 
 inline ObjectWrapper ObjectWrapperIterator::GetValue() const {
-  if (view_ == false) {
+  if (itype_ == IteratorType::Map) {
     return ObjectWrapper(iter_.GetValue());
+  } else if (itype_ == IteratorType::MapView) {
+    return ObjectWrapper(iter_view_.GetValue());
+  } else if (itype_ == IteratorType::Array) {
+    return ObjectWrapper(iter_array_.GetValue());
+  } else {
+    throw std::runtime_error("invalid iterator type on GetValue");
   }
-  return ObjectWrapper(iter_view_.GetValue());
 }
 
 inline Map* AsMap(Object* obj) {

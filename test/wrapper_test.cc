@@ -88,4 +88,16 @@ TEST(object, wrapper_iter) {
     }
   }
   EXPECT_EQ(find_key2 && find_key, true);
+  auto arr_iter = wrapper["key"].GetIteraotr().value();
+  int count = 0;
+  for (; arr_iter.Valid(); ++arr_iter) {
+    if (count == 0) {
+      EXPECT_EQ(arr_iter.GetValue().Get<uint32_t>().value(), 0);
+    } else if (count == 1) {
+      EXPECT_EQ(arr_iter.GetValue().Get<std::string>().value(), "world");
+    } else {
+      EXPECT_EQ(arr_iter.GetValue().Get<std::string>().value(), "hello");
+    }
+    ++count;
+  }
 }
