@@ -21,10 +21,34 @@ A high-performance and concise serialization and deserialization Library
 * cpp compiler supporting c++20 (like g++-11)
 * bazel 5.2.0
 
-### doc
-https://slides.com/chloro-pn/serif
-
-
+### code distribution
+```
+   182 ./benchmark/bench_mark.cc
+    75 ./example/string_map.cc
+    32 ./example/adaptor.cc
+   216 ./example/coroutine_parse.cc
+    45 ./example/main.cc
+    37 ./src/coroutine_scheduler.cc
+    33 ./include/bridge/inner.h
+    62 ./include/bridge/adaptor.h
+    63 ./include/bridge/util.h
+   139 ./include/bridge/serialize.h
+   120 ./include/bridge/parse.h
+    89 ./include/bridge/async_executor/thread_pool.h
+    43 ./include/bridge/async_executor/executor.h
+   289 ./include/bridge/async_executor/task.h
+  1532 ./include/bridge/object.h
+   160 ./include/bridge/type_trait.h
+   100 ./include/bridge/data_type.h
+   135 ./include/bridge/variant.h
+    37 ./include/bridge/object_type.h
+    63 ./include/bridge/varint.h
+    88 ./include/bridge/string_map.h
+   134 ./include/bridge/object_pool.h
+   190 ./include/bridge/pattern.h
+    80 ./include/bridge/split_info.h
+  3944 总用量
+```
 ### benchmark
 ![image](https://github.com/chloro-pn/bridge/blob/master/png/benchmark.PNG)
 
