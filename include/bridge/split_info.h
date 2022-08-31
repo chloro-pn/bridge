@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -64,7 +65,9 @@ class SplitInfo {
         uint32_t tmp = parseLength(wrapper, offset);
         block_info.push_back(tmp);
       }
-      assert(ret.info_.count(id) == 0);
+      if (ret.info_.count(id) != 0) {
+        throw std::runtime_error("SplitInfo Construct from bytes error");
+      }
       ret.info_.insert({id, std::move(block_info)});
       if (id >= ret.next_id_) {
         ret.next_id_ = id + 1;

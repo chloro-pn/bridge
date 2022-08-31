@@ -123,6 +123,7 @@ class Data : public Object, public RequireDestruct {
   template <typename T>
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
+    // 不需要抛出异常，编译期推导保证
     assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
     serialize(std::forward<T>(obj), variant_);
   }
@@ -130,6 +131,7 @@ class Data : public Object, public RequireDestruct {
   template <bridge_custom_type T>
   explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
+    // 不需要抛出异常，编译期推导保证
     assert(data_type_ == BRIDGE_CUSTOM);
     serialize(obj.SerializeToBridge(), variant_);
   }
@@ -138,6 +140,7 @@ class Data : public Object, public RequireDestruct {
   Data& operator=(T&& obj) {
     destruct_by_datatype();
     data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
     serialize(std::forward<T>(obj), variant_);
     return *this;
   }
@@ -145,14 +148,14 @@ class Data : public Object, public RequireDestruct {
   template <bridge_custom_type T>
   Data& operator=(T&& obj) {
     destruct_by_datatype();
-    data_type_ = BRIDGE_CUSTOM;
+    data_type_ = DataTypeTrait<T>::dt;
+    assert(data_type_ == BRIDGE_CUSTOM);
     serialize(obj.SerializeToBridge(), variant_);
     return *this;
   }
 
-  template <typename T>
-  requires bridge_data_type<T> std::optional<T> Get()
-  const {
+  template <bridge_data_type T>
+  std::optional<T> Get() const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
@@ -188,28 +191,17 @@ class Data : public Object, public RequireDestruct {
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     data_type_ = parseDataType(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
-    assert(data_type_ != BRIDGE_INVALID);
+    BRIDGE_CHECK_DATA_TYPE(data_type_);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
       uint32_t id = parseLength(inner, offset);
-      if (inner.outOfRange()) {
-        return;
-      }
       std::string_view str = map->GetStr(id);
       variant_.construct<std::string>(str);
       return;
     }
     uint64_t size = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     parseData(data_type_, inner.curAddr(), size, variant_);
     inner.skip(size);
-    if (inner.outOfRange()) {
-      return;
-    }
+    BRIDGE_CHECK_OOR(inner);
     offset += size;
   }
 
@@ -217,7 +209,7 @@ class Data : public Object, public RequireDestruct {
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     need_to_split = false;
-    assert(data_type_ != BRIDGE_INVALID);
+    BRIDGE_CHECK_DATA_TYPE(data_type_);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
       std::string_view view(variant_.get<std::string>());
@@ -310,27 +302,16 @@ class DataView : public Object, public DontRequireDestruct {
   requires bridge_inner_concept<Inner>
   void valueParse(const Inner& inner, size_t& offset, bool parse_ref, const StringMap* map) {
     data_type_ = parseDataType(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
-    assert(data_type_ != BRIDGE_INVALID);
+    BRIDGE_CHECK_DATA_TYPE(data_type_);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
       uint32_t id = parseLength(inner, offset);
-      if (inner.outOfRange()) {
-        return;
-      }
       variant_.construct<std::string_view>(map->GetStr(id));
       return;
     }
     uint64_t size = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     parseData(data_type_, inner.curAddr(), size, variant_);
     inner.skip(size);
-    if (inner.outOfRange()) {
-      return;
-    }
+    BRIDGE_CHECK_OOR(inner);
     offset += size;
   }
 
@@ -338,7 +319,7 @@ class DataView : public Object, public DontRequireDestruct {
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const {
     need_to_split = false;
-    assert(data_type_ != BRIDGE_INVALID);
+    BRIDGE_CHECK_DATA_TYPE(data_type_);
     seriDataType(data_type_, outer);
     if (data_type_ == BRIDGE_STRING && map != nullptr) {
       uint32_t id = map->RegisterIdFromString(variant_.get<std::string_view>());
@@ -424,6 +405,7 @@ class BridgeContainerType {
       uint64_t key_length = parseLength(inner, offset);
       key_view = std::string_view(inner.curAddr(), key_length);
       inner.skip(key_length);
+      BRIDGE_CHECK_OOR(inner);
       offset += key_length;
     } else {
       uint32_t id = parseLength(inner, offset);
@@ -533,11 +515,15 @@ class Array : public Object, public BridgeContainerType<Array>, public DontRequi
     size_t i = 0;
     ArrayItem* tmp = last_child_;
     while (i < n) {
-      assert(tmp != nullptr);
+      if (tmp == nullptr) {
+        return nullptr;
+      }
       tmp = tmp->next_;
       i += 1;
     }
-    assert(tmp != nullptr);
+    if (tmp == nullptr) {
+      return nullptr;
+    }
     return tmp->node_.get();
   }
 
@@ -731,6 +717,7 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
+    BRIDGE_CHECK_OOR(inner);
     for (uint64_t i = 0; i < count; ++i) {
       // parse key
       std::string_view key_view = parse_key(inner, offset, map);
@@ -854,9 +841,6 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     uint64_t count = parseLength(inner, offset);
     // 对于不需要并行解析的情况，我们仅将这个id解析出来即可，没有其他开销
     uint32_t splite_info_id = parseLength(inner, offset);
-    if (inner.outOfRange()) {
-      return;
-    }
     for (uint64_t i = 0; i < count; ++i) {
       std::string_view key_view = parse_key(inner, offset, map);
       auto v = parse_child(inner, offset, parse_ref, map);
@@ -1301,7 +1285,9 @@ enum class SeriType : char {
 constexpr inline char SeriTypeToChar(SeriType st) { return static_cast<char>(st); }
 
 inline void SeriTotalSizeToOuter(uint64_t total_size, std::string& outer) {
-  assert(outer.size() >= sizeof(uint64_t));
+  if (outer.size() < sizeof(uint64_t)) {
+    throw std::runtime_error("seri total size error");
+  }
   if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
     total_size = flipByByte(total_size);
   }
@@ -1309,7 +1295,9 @@ inline void SeriTotalSizeToOuter(uint64_t total_size, std::string& outer) {
 }
 
 inline uint64_t ParseTotalSize(const std::string& inner) {
-  assert(inner.size() >= sizeof(uint64_t));
+  if (inner.size() < sizeof(uint64_t)) {
+    throw std::runtime_error("parse total size error");
+  }
   uint64_t total_size = *reinterpret_cast<const uint64_t*>(&inner[0]);
   if (Endian::Instance().GetEndianType() == Endian::Type::Little) {
     total_size = flipByByte(total_size);
@@ -1446,6 +1434,7 @@ class Scheduler {
     char c = content[sizeof(uint64_t)];
     InnerWrapper wrapper(content);
     wrapper.skip(meta_size);
+    BRIDGE_CHECK_OOR(wrapper);
     size_t offset = meta_size;
     if (c == SeriTypeToChar(SeriType::NORMAL)) {
       uint64_t tmp_total_size = total_size;
@@ -1483,6 +1472,7 @@ class NormalScheduler : public Scheduler {
     size_t meta_size = GetMetaSize();
     InnerWrapper wrapper(content_);
     wrapper.skip(meta_size);
+    BRIDGE_CHECK_OOR(wrapper);
     size_t offset = meta_size;
     unique_ptr<Object> root(nullptr, object_pool_deleter);
     if (parse_ref_ == false) {

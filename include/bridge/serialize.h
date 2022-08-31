@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -106,14 +107,13 @@ void seriData(uint8_t dt, const bridge_variant& data, Outer& outer) {
   BRIDGE_SERI(BRIDGE_FLOAT, float)
   BRIDGE_SERI(BRIDGE_DOUBLE, double)
   else {
-    assert(false);
+    throw std::runtime_error("seri data error : invalid data_type");
   }
 }
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
 void seriData(uint8_t dt, const bridge_view_variant& data, Outer& outer) {
-  assert(dt != BRIDGE_CUSTOM && dt != BRIDGE_INVALID);
   if (dt == BRIDGE_BYTES || dt == BRIDGE_STRING) {
     std::string_view tmp = data.get<std::string_view>();
     seriLength(tmp.size(), outer);
@@ -126,14 +126,16 @@ void seriData(uint8_t dt, const bridge_view_variant& data, Outer& outer) {
   BRIDGE_SERI(BRIDGE_FLOAT, float)
   BRIDGE_SERI(BRIDGE_DOUBLE, double)
   else {
-    assert(false);
+    throw std::runtime_error("seri data error : invalid data_type");
   }
 }
 
 template <typename Outer>
 requires bridge_outer_concept<Outer>
 void seriObjectType(ObjectType type, Outer& outer) {
-  assert(type != ObjectType::Invalid);
+  if (type == ObjectType::Invalid) {
+    throw std::runtime_error("seri object type error");
+  }
   char tmp = ObjectTypeToChar(type);
   outer.push_back(tmp);
 }

@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -12,7 +13,9 @@ class InnerWrapper {
   InnerWrapper(std::string_view str) : str_(str), current_index_(0) {}
 
   const char* curAddr() const {
-    assert(current_index_ < str_.size());
+    if (current_index_ >= str_.size()) {
+      throw std::runtime_error("inner.curAddr() error");
+    }
     return &str_[current_index_];
   }
 
@@ -30,5 +33,10 @@ class InnerWrapper {
   std::string_view str_;
   mutable size_t current_index_;
 };
+
+#define BRIDGE_CHECK_OOR(inner)                                   \
+  if (inner.outOfRange()) {                                       \
+    throw std::runtime_error("parse error : inner out of range"); \
+  }
 
 }  // namespace bridge

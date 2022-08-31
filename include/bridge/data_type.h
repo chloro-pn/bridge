@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,11 @@ namespace bridge {
 #define BRIDGE_DOUBLE 0x07
 #define BRIDGE_CUSTOM 0x0C
 #define BRIDGE_INVALID 0x0D
+
+#define BRIDGE_CHECK_DATA_TYPE(t)                                                                                \
+  if (t != BRIDGE_BYTES && t != BRIDGE_STRING && t != BRIDGE_INT32 && t != BRIDGE_UINT32 && t != BRIDGE_INT64 && \
+      t != BRIDGE_UINT64 && t != BRIDGE_FLOAT && t != BRIDGE_DOUBLE && t != BRIDGE_CUSTOM)                       \
+    throw std::runtime_error("datatype check error");
 
 template <typename T>
 struct InnerDataTypeTrait;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -39,7 +40,9 @@ class StringMap {
     if (re_map_ == nullptr) {
       const_cast<StringMap*>(this)->buildReMap();
     }
-    assert(re_map_->count(id) > 0);
+    if (re_map_->count(id) == 0) {
+      throw std::runtime_error("string_view GetStr error");
+    }
     return (*re_map_)[id];
   }
 
