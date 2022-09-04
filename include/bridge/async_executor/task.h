@@ -62,13 +62,14 @@ inline Lazy<std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>> ParseArrayBl
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
-      } else {
-        assert(type == ObjectType::Map);
+      } else if (type == ObjectType::Map) {
         auto parse_result = co_await ParseMap(content, si, sm, w.currentIndex(), parse_ref);
         parsed_node = std::move(parse_result.v);
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
+      } else {
+        throw std::runtime_error("parse array block error : data need to split");
       }
     }
     if (head == nullptr) {
@@ -153,13 +154,14 @@ inline Lazy<std::tuple<MapItem*, MapItem*, size_t, BridgePool>> ParseMapBlock(st
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
-      } else {
-        assert(type == ObjectType::Map);
+      } else if (type == ObjectType::Map) {
         auto parse_result = co_await ParseMap(content, si, sm, w.currentIndex(), false);
         parsed_object = std::move(parse_result.v);
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
+      } else {
+        throw std::runtime_error("parse array block error : data need to split");
       }
     }
     if (head == nullptr) {
@@ -216,13 +218,15 @@ inline Lazy<std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>> ParseMap
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
-      } else {
+      } else if (type == ObjectType::Map) {
         assert(type == ObjectType::Map);
         auto parse_result = co_await ParseMap(content, si, sm, w.currentIndex(), true);
         parsed_object = std::move(parse_result.v);
         w.skipTo(parse_result.offset);
         offset = w.currentIndex();
         bp.Merge(std::move(parse_result.bp));
+      } else {
+        throw std::runtime_error("parse array block error : data need to split");
       }
     }
     if (head == nullptr) {
