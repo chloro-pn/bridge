@@ -19,7 +19,7 @@ class InnerWrapper {
     return &str_[current_index_];
   }
 
-  size_t remain() const { return str_.size() - current_index_; }
+  ssize_t remain() const { return str_.size() - current_index_; }
 
   void skip(size_t k) const { current_index_ += k; }
 
@@ -37,6 +37,11 @@ class InnerWrapper {
 #define BRIDGE_CHECK_OOR(inner)                                   \
   if (inner.outOfRange()) {                                       \
     throw std::runtime_error("parse error : inner out of range"); \
+  }
+
+#define BRIDGE_CHECK_EMPTY(inner)                          \
+  if (inner.remain() <= 0) {                               \
+    throw std::runtime_error("parse error : inner empty"); \
   }
 
 }  // namespace bridge

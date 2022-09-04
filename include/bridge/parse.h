@@ -22,6 +22,7 @@ const T& parse(const bridge_variant& data) {
 
 template <typename Inner>
 uint64_t parseLength(const Inner& inner, size_t& offset) {
+  BRIDGE_CHECK_EMPTY(inner);
   unsigned long long tmp;
   unsigned char bytes;
   tmp = varint_decode(inner.curAddr(), inner.remain(), &bytes);
@@ -32,15 +33,22 @@ uint64_t parseLength(const Inner& inner, size_t& offset) {
 }
 
 inline uint64_t parseLength(const std::string& inner, size_t offset, char& skip) {
+  if (inner.size() <= offset) {
+    throw std::runtime_error("parseLength error : inner empty");
+  }
   unsigned long long tmp;
   unsigned char bytes;
   tmp = varint_decode(&inner[offset], inner.size() - offset, &bytes);
   skip = bytes;
+  if (inner.size() < offset + skip) {
+    throw std::runtime_error("parseLength error : inner out of range");
+  }
   return tmp;
 }
 
 template <typename Inner>
 uint8_t parseDataType(const Inner& inner, size_t& offset) {
+  BRIDGE_CHECK_EMPTY(inner);
   uint8_t tmp = static_cast<uint8_t>(*inner.curAddr());
   inner.skip(sizeof(tmp));
   BRIDGE_CHECK_OOR(inner);
@@ -93,6 +101,7 @@ inline void parseData(uint8_t data_type, const char* ptr, size_t len, bridge_vie
 
 template <typename Inner>
 ObjectType parseObjectType(const Inner& inner, size_t& offset) {
+  BRIDGE_CHECK_EMPTY(inner);
   char tmp = *inner.curAddr();
   inner.skip(sizeof(tmp));
   BRIDGE_CHECK_OOR(inner);
@@ -107,6 +116,7 @@ ObjectType parseObjectType(const Inner& inner, size_t& offset) {
 
 template <typename Inner>
 ObjectType parseObjectType(const Inner& inner, size_t& offset, bool& need_to_split) {
+  BRIDGE_CHECK_EMPTY(inner);
   char tmp = *inner.curAddr();
   inner.skip(sizeof(tmp));
   BRIDGE_CHECK_OOR(inner);

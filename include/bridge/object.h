@@ -1428,7 +1428,7 @@ class Scheduler {
   void initFromContent(const std::string& content) {
     size_t meta_size = GetMetaSize();
     if (content.size() < meta_size) {
-      throw std::logic_error("content.size() < meta_size");
+      throw std::runtime_error("content.size() < meta_size");
     }
     uint64_t total_size = ParseTotalSize(content);
     char c = content[sizeof(uint64_t)];
@@ -1446,7 +1446,7 @@ class Scheduler {
       split_info_ = ParseSecondary<SplitInfo>(content, tmp_total_size);
       use_string_map_ = true;
     } else {
-      throw std::logic_error("invalid seri type : " + std::to_string(c));
+      throw std::runtime_error("invalid seri type : " + std::to_string(c));
     }
     total_size_ = total_size;
     char split_flag = content[sizeof(uint64_t) + sizeof(char)];
@@ -1455,7 +1455,7 @@ class Scheduler {
     } else if (split_flag == 0x0A) {
       need_to_split_ = true;
     } else {
-      throw std::logic_error("invalid split flag : " + std::to_string((int)split_flag));
+      throw std::runtime_error("invalid split flag : " + std::to_string((int)split_flag));
     }
   }
 };
@@ -1482,7 +1482,7 @@ class NormalScheduler : public Scheduler {
     }
     root->valueParse(wrapper, offset, parse_ref_, GetStringMap());
     if (offset != GetTotalSize()) {
-      throw std::logic_error("parse error");
+      throw std::runtime_error("parse error");
     }
     return parse_ref_ == false ? AsMap(root)->Get("root") : static_cast<MapView*>(root.get())->Get("root");
   }

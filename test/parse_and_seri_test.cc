@@ -34,3 +34,13 @@ TEST(parse_and_seri, replace) {
   EXPECT_EQ(wrapper2["tags"].Get<std::string>().value(), "hello world");
   EXPECT_EQ(wrapper2["v1"][0].Get<int32_t>().value(), 1);
 }
+
+TEST(parse_and_seri, exception) {
+  BridgePool bp;
+  std::string strs;
+  EXPECT_THROW(Parse(strs, bp, ParseOption()), std::runtime_error);
+  strs.resize(8);
+  EXPECT_THROW(Parse(strs, bp, ParseOption()), std::runtime_error);
+  strs.resize(1024, 'a');
+  EXPECT_THROW(Parse(strs, bp, ParseOption()), std::runtime_error);
+}
