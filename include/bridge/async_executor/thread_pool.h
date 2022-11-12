@@ -7,8 +7,6 @@
 #include <thread>
 #include <vector>
 
-#include "bridge/util.h"
-
 namespace bridge {
 
 class ThreadPool {

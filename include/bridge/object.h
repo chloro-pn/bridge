@@ -1100,7 +1100,7 @@ class ObjectWrapperIterator {
 };
 
 template <typename T>
-struct function_ {
+struct get_proxy_ {
   std::optional<T> Get() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
       return std::optional<T>();
@@ -1112,11 +1112,11 @@ struct function_ {
   }
 
   const Object* obj_;
-  explicit function_(const Object* obj) : obj_(obj) {}
+  explicit get_proxy_(const Object* obj) : obj_(obj) {}
 };
 
 template <>
-struct function_<std::string> {
+struct get_proxy_<std::string> {
   std::optional<std::string> Get() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
       return std::optional<std::string>();
@@ -1128,11 +1128,11 @@ struct function_<std::string> {
   }
 
   const Object* obj_;
-  explicit function_(const Object* obj) : obj_(obj) {}
+  explicit get_proxy_(const Object* obj) : obj_(obj) {}
 };
 
 template <>
-struct function_<std::string_view> {
+struct get_proxy_<std::string_view> {
   std::optional<std::string_view> Get() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
       return std::optional<std::string_view>();
@@ -1144,7 +1144,7 @@ struct function_<std::string_view> {
   }
 
   const Object* obj_;
-  explicit function_(const Object* obj) : obj_(obj) {}
+  explicit get_proxy_(const Object* obj) : obj_(obj) {}
 };
 
 class ObjectWrapper {
@@ -1211,7 +1211,7 @@ class ObjectWrapper {
 
   template <typename T>
   std::optional<T> Get() const {
-    return function_<T>(obj_).Get();
+    return get_proxy_<T>(obj_).Get();
   }
 
   template <typename T>

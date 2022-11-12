@@ -5,8 +5,6 @@
 #include <utility>
 #include <vector>
 
-#include "bridge/variant.h"
-
 namespace bridge {
 
 struct DestructorDispatchBase {

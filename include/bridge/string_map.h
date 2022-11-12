@@ -7,9 +7,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "bridge/async_executor/thread_pool.h"
-#include "bridge/inner.h"
-#include "bridge/parse.h"
 #include "bridge/serialize.h"
 
 namespace bridge {
