@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "bridge/async_executor/executor.h"
-#include "bridge/async_executor/task.h"
 #include "bridge/async_executor/thread_pool.h"
 #include "bridge/object.h"
 #include "bridge/util.h"

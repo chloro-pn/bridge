@@ -1,7 +1,7 @@
 #include "async_simple/coro/Lazy.h"
 #include "async_simple/coro/SyncAwait.h"
 #include "bridge/async_executor/executor.h"
-#include "bridge/async_executor/task.h"
+#include "bridge/object.h"
 #include "gtest/gtest.h"
 
 using namespace async_simple::coro;
