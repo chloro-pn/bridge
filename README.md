@@ -23,31 +23,46 @@ A high-performance and concise serialization and deserialization Library
 
 ### code distribution
 ```
-   182 ./benchmark/bench_mark.cc
-    75 ./example/string_map.cc
-    32 ./example/adaptor.cc
-   216 ./example/coroutine_parse.cc
-    45 ./example/main.cc
-    37 ./src/coroutine_scheduler.cc
-    33 ./include/bridge/inner.h
+    46 ./include/bridge/inner.h
     62 ./include/bridge/adaptor.h
     63 ./include/bridge/util.h
-   139 ./include/bridge/serialize.h
-   120 ./include/bridge/parse.h
-    89 ./include/bridge/async_executor/thread_pool.h
+   141 ./include/bridge/serialize.h
+   136 ./include/bridge/parse.h
+    87 ./include/bridge/async_executor/thread_pool.h
     43 ./include/bridge/async_executor/executor.h
-   289 ./include/bridge/async_executor/task.h
-  1532 ./include/bridge/object.h
-   160 ./include/bridge/type_trait.h
-   100 ./include/bridge/data_type.h
+  1832 ./include/bridge/object.h
+   164 ./include/bridge/type_trait.h
+   106 ./include/bridge/data_type.h
    135 ./include/bridge/variant.h
     37 ./include/bridge/object_type.h
     63 ./include/bridge/varint.h
     88 ./include/bridge/string_map.h
-   134 ./include/bridge/object_pool.h
+   132 ./include/bridge/object_pool.h
    190 ./include/bridge/pattern.h
-    80 ./include/bridge/split_info.h
-  3944 总用量
+    83 ./include/bridge/split_info.h
+  3408 总用量
+
+  182 ./benchmark/bench_mark.cc
+   75 ./example/string_map.cc
+   32 ./example/adaptor.cc
+  215 ./example/coroutine_parse.cc
+   45 ./example/main.cc
+   14 ./test/thread_pool_test.cc
+  139 ./test/object_test.cc
+   13 ./test/json_test.cc
+   17 ./test/inner_test.cc
+   42 ./test/dump_test.cc
+   67 ./test/type_trait_test.cc
+  102 ./test/wrapper_test.cc
+   23 ./test/object_pool_test.cc
+   52 ./test/async_simple_test.cc
+   46 ./test/adaptor_test.cc
+  100 ./test/variant_test.cc
+   82 ./test/pattern_test.cc
+   45 ./test/parse_and_seri_test.cc
+   39 ./test/secondary_struct_test.cc
+   20 ./test/endian_test.cc
+  1350 总用量
 ```
 ### benchmark
 ![image](https://github.com/chloro-pn/bridge/blob/master/png/benchmark.PNG)
