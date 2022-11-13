@@ -21,8 +21,8 @@ jobs:
     - name: test
       run: bazel test "..." --compilation_mode=opt
     - name: example
-      run: bazel run //:example --compilation_mode=opt
+      run: bazel run //:quick_start --compilation_mode=opt
     - name: benchmark
       run: ./bazel-bin/bench_mark --benchmark_time_unit=ms
     - name: coroutine
-      run: bazel run //:scheduler --compilation_mode=opt
+      run: bazel run //:benchmark_with_rapidjson --compilation_mode=opt
