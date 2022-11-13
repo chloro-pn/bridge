@@ -9,6 +9,10 @@
 
 using namespace bridge;
 
+/*
+ * 这个例子展示了使用bridge的字典压缩功能，将字符串映射为整型id，然后将整型id进行varint编码，并与json对比占用空间。
+ */
+
 int main() {
   BridgePool bp;
   std::vector<std::unordered_map<std::string, std::string>> info;

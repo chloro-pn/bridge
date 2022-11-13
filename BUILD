@@ -15,8 +15,8 @@ cc_library(
 )
 
 cc_binary(
-  name = "example",
-  srcs = ["example/main.cc"],
+  name = "quick_start",
+  srcs = ["example/quick_start.cc"],
   deps = [
     ":bridge",
   ]
@@ -40,8 +40,8 @@ cc_binary(
 )
 
 cc_binary(
-  name = "scheduler",
-  srcs = ["example/coroutine_parse.cc"],
+  name = "benchmark_with_rapidjson",
+  srcs = ["example/benchmark_with_rapidjson.cc"],
   deps = [
     ":bridge",
     "@rapid-json//:rapidjson",

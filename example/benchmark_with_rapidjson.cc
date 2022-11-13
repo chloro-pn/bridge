@@ -15,6 +15,10 @@
 #include "rapidjson/writer.h"
 
 /*
+ * 这个例子展示了bridge和rapidjson的空间占用对比和序列化、反序列化性能对比，场景为多维时序数据传输。
+ */
+
+/*
  * 测试环境Ubuntu20.04 + g++11 + 6core
  */
 
