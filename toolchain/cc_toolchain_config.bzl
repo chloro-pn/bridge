@@ -9,6 +9,17 @@ load(
     "tool_path",
 )
 
+all_compile_actions = [
+    ACTION_NAMES.c_compile,
+    ACTION_NAMES.cpp_compile,
+    ACTION_NAMES.linkstamp_compile,
+    ACTION_NAMES.assemble,
+    ACTION_NAMES.preprocess_assemble,
+    ACTION_NAMES.cpp_header_parsing,
+    ACTION_NAMES.cpp_module_compile,
+    ACTION_NAMES.cpp_module_codegen,
+]
+
 all_link_actions = [ # NEW
     ACTION_NAMES.cpp_link_executable,
     ACTION_NAMES.cpp_link_dynamic_library,
@@ -51,6 +62,29 @@ def _impl(ctx):
     ),
   ]
   features = [ # NEW
+    feature(
+      name = "default_compiler_flags",
+      enabled = True,
+      flag_sets = [
+        flag_set(
+          actions = all_compile_actions,
+          flag_groups = (
+            [
+              flag_group(
+                flags = [
+                  "-O2",
+                  "-DNDEBUG",
+                  "-Wall",
+                  "-Wextra",
+                  "-Wpedantic",
+                  "-fPIC",
+                ],
+              ),
+            ]
+          ),
+        ),
+      ],
+    ),
     feature(
         name = "default_linker_flags",
         enabled = True,
