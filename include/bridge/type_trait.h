@@ -34,12 +34,16 @@ struct NoRefNoPointer<T* const> {
 };
 
 template <typename T>
-concept bridge_integral = std::is_same_v<int32_t, T> || std::is_same_v<uint32_t, T> || std::is_same_v<int64_t, T> ||
-    std::is_same_v<uint64_t, T>;
+concept bridge_integral = std::is_same_v<int32_t, T> || 
+                          std::is_same_v<uint32_t, T> || 
+                          std::is_same_v<int64_t, T> ||
+                          std::is_same_v<uint64_t, T>;
 
 template <typename T>
-concept bridge_floating = std::is_same_v<float, T> || std::is_same_v<double, T>;
+concept bridge_floating = std::is_same_v<float, T> || 
+                          std::is_same_v<double, T>;
 
+// c-style string trait
 template <typename T>
 struct bridge_cstr_ref_trait {
   static constexpr bool value = false;
@@ -55,6 +59,14 @@ struct bridge_cstr_ref_trait<const char (&)[n]> {
   static constexpr bool value = true;
 };
 
+template <typename T>
+concept bridge_string = bridge_cstr_ref_trait<T>::value || std::is_same_v<std::string, T>;
+
+using bridge_binary_type = std::vector<char>;
+
+template <typename T>
+concept bridge_binary = std::is_same_v<bridge_binary_type, T>;
+
 /*
  * 自定义类型可以接入bridge
  */
@@ -65,15 +77,14 @@ concept bridge_custom_type = requires(const T& t, const std::vector<char>& bytes
 };
 
 template <typename T>
-concept bridge_data_type = bridge_integral<T> || 
-                           bridge_floating<T> || 
-                           std::is_same_v<std::string, T> ||
-                           std::is_same_v<std::vector<char>, T> || 
-                           bridge_cstr_ref_trait<T>::value;
+concept bridge_built_in_type = bridge_integral<T> || 
+                               bridge_floating<T> || 
+                               bridge_string<T> ||
+                               bridge_binary<T>;
 
 template <typename T>
 concept bridge_type = bridge_custom_type<T> || 
-                      bridge_data_type<T>;
+                      bridge_built_in_type<T>;
 
 /* trait vector and unordered_map<std::string, ...> type */
 template <typename T>

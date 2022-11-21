@@ -25,17 +25,20 @@
 #include "bridge/type_trait.h"
 #include "bridge/variant.h"
 
+#define BRIDGE_API 
+
 namespace bridge {
 
+// todo : 作为可配置项提供
 constexpr size_t split_block_size = 1024 * 1024 * 10;
 
 class Object {
  public:
   Object(ObjectType type, bool ref_type) : type_(type), ref_type_(ref_type) {}
 
-  ObjectType GetType() const { return type_; }
+  BRIDGE_API ObjectType GetType() const { return type_; }
 
-  bool IsRefType() const { return ref_type_; }
+  BRIDGE_API bool IsRefType() const { return ref_type_; }
 
   virtual ~Object() = default;
 
@@ -49,7 +52,7 @@ class Object {
   requires bridge_outer_concept<Outer>
   void valueSeri(Outer& outer, StringMap* map, SplitInfo* si, bool& need_to_split) const;
 
-  void dump(std::string& buf, int level) const;
+  BRIDGE_API void dump(std::string& buf, int level) const;
 
  private:
   ObjectType type_;
@@ -78,7 +81,7 @@ class BridgePool {
 
   void Merge(BridgePool&& other);
 
-  void Clear() {
+  BRIDGE_API void Clear() {
     data_pool_.Clear();
     data_view_pool_.Clear();
     array_pool_.Clear();
@@ -90,20 +93,20 @@ class BridgePool {
   }
 
   template <typename... Args>
-  unique_ptr<Data> data(Args&&... args);
+  BRIDGE_API unique_ptr<Data> data(Args&&... args);
 
   template <typename... Args>
-  unique_ptr<DataView> data_view(Args&&... args);
+  BRIDGE_API unique_ptr<DataView> data_view(Args&&... args);
 
-  unique_ptr<Array> array();
+  BRIDGE_API unique_ptr<Array> array();
 
   ArrayItem* array_item();
 
-  unique_ptr<Map> map();
+  BRIDGE_API unique_ptr<Map> map();
 
   MapItem* map_item();
 
-  unique_ptr<MapView> map_view();
+  BRIDGE_API unique_ptr<MapView> map_view();
 
   MapViewItem* map_view_item();
 
@@ -120,77 +123,87 @@ class BridgePool {
   ObjectPool<MapViewItem> map_view_item_pool_;
 };
 
+namespace detail {
+
+/*
+ * 注意：代理函数不检测类型是否匹配
+ */
+
+template<typename T>
+void serialize_proxy(T&& obj, bridge_variant& container) {
+  serialize(std::forward<T>(obj), container);
+}
+
+template<typename T>
+requires bridge_custom_type<T>
+void serialize_proxy(T&& obj, bridge_variant& container) {
+  serialize(std::forward<T>(obj).SerializeToBridge(), container);
+}
+
+template<typename T>
+std::optional<T> get_proxy(const bridge_variant& container) {
+  return std::optional(parse<T>(container));
+}
+
+template<typename T>
+requires bridge_custom_type<T>
+std::optional<T> get_proxy(const bridge_variant& container) {
+  return std::optional(T::ConstructFromBridge(container.get<bridge_binary_type>()));
+}
+
+template<typename T>
+const T* get_ptr_proxy(const bridge_variant& container) {
+  return &parse<T>(container);
+}
+
+template<typename T>
+requires bridge_custom_type<T>
+const T* get_ptr_proxy(const bridge_variant& container) {
+  return &parse<bridge_binary_type>(container);
+}
+
+}
+
 class Data : public Object, public RequireDestruct {
  public:
   // 默认构造函数，Data处于不合法状态
-  Data() : Object(ObjectType::Data, false), data_type_(BRIDGE_INVALID) {}
+  BRIDGE_API Data() : Object(ObjectType::Data, false), data_type_(BRIDGE_INVALID) {}
 
   template <typename T>
-  explicit Data(T&& obj) : Object(ObjectType::Data, false) {
+  BRIDGE_API explicit Data(T&& obj) : Object(ObjectType::Data, false) {
     data_type_ = DataTypeTrait<T>::dt;
-    // 不需要抛出异常，编译期推导保证
-    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
-    serialize(std::forward<T>(obj), variant_);
-  }
-
-  template <bridge_custom_type T>
-  explicit Data(T&& obj) : Object(ObjectType::Data, false) {
-    data_type_ = DataTypeTrait<T>::dt;
-    // 不需要抛出异常，编译期推导保证
-    assert(data_type_ == BRIDGE_CUSTOM);
-    serialize(obj.SerializeToBridge(), variant_);
+    detail::serialize_proxy(std::forward<T>(obj), variant_);
   }
 
   template <typename T>
-  Data& operator=(T&& obj) {
+  BRIDGE_API Data& operator=(T&& obj) {
     destruct_by_datatype();
     data_type_ = DataTypeTrait<T>::dt;
-    assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
-    serialize(std::forward<T>(obj), variant_);
+    detail::serialize_proxy(std::forward<T>(obj), variant_);
     return *this;
   }
 
-  template <bridge_custom_type T>
-  Data& operator=(T&& obj) {
-    destruct_by_datatype();
-    data_type_ = DataTypeTrait<T>::dt;
-    assert(data_type_ == BRIDGE_CUSTOM);
-    serialize(obj.SerializeToBridge(), variant_);
-    return *this;
-  }
-
-  template <bridge_data_type T>
-  std::optional<T> Get() const {
+  template <typename T>
+  BRIDGE_API std::optional<T> Get() const {
     static_assert(NoRefNoPointer<T>::value,
                   "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
     // 当处于不合法状态时，总是返回空的optional
     if (DataTypeTrait<T>::dt != data_type_) {
       return std::optional<T>();
     }
-    return std::optional(parse<T>(variant_));
+    return detail::get_proxy<T>(variant_);
   }
 
-  template <bridge_data_type T>
-  const T* GetPtr() const {
+  template <typename T>
+  BRIDGE_API const T* GetPtr() const {
     static_assert(NoRefNoPointer<T>::value);
     if (DataTypeTrait<T>::dt != data_type_) {
       return nullptr;
     }
-    return &parse<T>(variant_);
+    return detail::get_ptr_proxy<T>(variant_);
   }
 
-  template <bridge_custom_type T>
-  std::optional<T> Get() const {
-    static_assert(NoRefNoPointer<T>::value,
-                  "get() method should not return ref or pointer type (including <T* const> and <const T*>)");
-    // 当处于不合法状态时，总是返回空的optional
-    if (DataTypeTrait<T>::dt != data_type_) {
-      return std::optional<T>();
-    }
-    return std::optional(T::ConstructFromBridge(variant_.get<std::vector<char>>()));
-  }
-
-  uint8_t GetDataType() const { return data_type_; }
+  BRIDGE_API uint8_t GetDataType() const { return data_type_; }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
@@ -246,24 +259,36 @@ class Data : public Object, public RequireDestruct {
   }
 };
 
+namespace detail {
+
+template<typename T>
+std::optional<std::string_view> view_get_proxy(uint8_t data_type, const bridge_view_variant& container) {
+  if (data_type != DataTypeTrait<T>::dt) {
+    throw std::runtime_error("data view get type mismatch!");
+  }
+  return container.get<std::string_view>();
+}
+}
+
+// 注意：DataView不支持bridge_custom_type, 额外支持std::string_view类型
 class DataView : public Object, public DontRequireDestruct {
  public:
-  DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID) {}
+  BRIDGE_API DataView() : Object(ObjectType::Data, true), data_type_(BRIDGE_INVALID) {}
 
-  template <bridge_data_type T>
-  explicit DataView(const T& obj) : Object(ObjectType::Data, true) {
+  template <bridge_built_in_type T>
+  BRIDGE_API explicit DataView(const T& obj) : Object(ObjectType::Data, true) {
     data_type_ = DataTypeTrait<T>::dt;
     assert(data_type_ != BRIDGE_CUSTOM && data_type_ != BRIDGE_INVALID);
     serialize(obj, variant_);
   }
 
-  explicit DataView(const std::string_view& obj) : Object(ObjectType::Data, true) {
+  BRIDGE_API explicit DataView(const std::string_view& obj) : Object(ObjectType::Data, true) {
     data_type_ = BRIDGE_STRING;
     serialize(obj, variant_);
   }
 
-  template <bridge_data_type T>
-  DataView& operator=(const T& obj) {
+  template <bridge_built_in_type T>
+  BRIDGE_API DataView& operator=(const T& obj) {
     // data view 不持有资源，因此不需要析构
     // destruct_by_datatype();
     data_type_ = DataTypeTrait<T>::dt;
@@ -272,19 +297,17 @@ class DataView : public Object, public DontRequireDestruct {
     return *this;
   }
 
-  DataView& operator=(const std::string_view& view) {
+  BRIDGE_API DataView& operator=(const std::string_view& view) {
     data_type_ = BRIDGE_STRING;
     serialize(view, variant_);
     return *this;
   }
 
-  uint8_t GetDataType() const { return data_type_; }
+  BRIDGE_API uint8_t GetDataType() const { return data_type_; }
 
-  // 不支持Get<std::string>() 和 Get<std::vector<char>>()
-  // 请使用Get<std::string_view>()
   template <typename T>
-  requires bridge_integral<T> || bridge_floating<T> std::optional<T> Get()
-  const {
+  requires bridge_integral<T> || bridge_floating<T> 
+  BRIDGE_API std::optional<T> Get() const {
     // 当处于不合法状态时，总是返回空的optional
     if (DataTypeTrait<T>::dt != data_type_) {
       return std::optional<T>();
@@ -293,14 +316,12 @@ class DataView : public Object, public DontRequireDestruct {
   }
 
   template <typename T>
-  requires std::same_as<T, std::string_view> std::optional<T> Get()
-  const { return GetStrView(); }
-
-  std::optional<std::string_view> GetStrView() const {
-    if (!(data_type_ == BRIDGE_STRING || data_type_ == BRIDGE_BYTES)) {
+  requires bridge_string<T> || bridge_binary<T>
+  BRIDGE_API std::optional<std::string_view> Get() const {
+    if (data_type_ != BRIDGE_STRING && data_type_ != BRIDGE_BYTES) {
       return std::optional<std::string_view>();
     }
-    return std::optional(variant_.get<std::string_view>());
+    return detail::view_get_proxy<T>(data_type_, variant_);
   }
 
   template <typename Inner>
@@ -1104,6 +1125,8 @@ class ObjectWrapperIterator {
   IteratorType itype_;
 };
 
+namespace detail {
+
 template <typename T>
 struct get_proxy_ {
   std::optional<T> Get() const {
@@ -1113,44 +1136,26 @@ struct get_proxy_ {
     if (obj_->IsRefType() == false) {
       return static_cast<const Data*>(obj_)->Get<T>();
     }
-    return static_cast<const DataView*>(obj_)->Get<T>();
+    return std::optional<T>();
   }
 
-  const Object* obj_;
-  explicit get_proxy_(const Object* obj) : obj_(obj) {}
-};
+  using data_view_get_rt_type = decltype(std::declval<DataView>().Get<T>());
 
-template <>
-struct get_proxy_<std::string> {
-  std::optional<std::string> Get() const {
+  data_view_get_rt_type GetView() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<std::string>();
-    }
-    if (obj_->IsRefType() == false) {
-      return static_cast<const Data*>(obj_)->Get<std::string>();
-    }
-    return std::optional<std::string>();
-  }
-
-  const Object* obj_;
-  explicit get_proxy_(const Object* obj) : obj_(obj) {}
-};
-
-template <>
-struct get_proxy_<std::string_view> {
-  std::optional<std::string_view> Get() const {
-    if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
-      return std::optional<std::string_view>();
+      return data_view_get_rt_type();
     }
     if (obj_->IsRefType() == true) {
-      return static_cast<const DataView*>(obj_)->Get<std::string_view>();
+      return static_cast<const DataView*>(obj_)->Get<T>();
     }
-    return std::optional<std::string_view>();
+    return data_view_get_rt_type();
   }
 
   const Object* obj_;
   explicit get_proxy_(const Object* obj) : obj_(obj) {}
 };
+
+}
 
 class ObjectWrapper {
  public:
@@ -1215,8 +1220,13 @@ class ObjectWrapper {
   }
 
   template <typename T>
-  std::optional<T> Get() const {
-    return get_proxy_<T>(obj_).Get();
+  auto Get() const {
+    return detail::get_proxy_<T>(obj_).Get();
+  }
+
+  template <typename T>
+  auto GetView() const {
+    return detail::get_proxy_<T>(obj_).GetView();
   }
 
   template <typename T>

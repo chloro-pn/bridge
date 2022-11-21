@@ -26,6 +26,14 @@ namespace bridge {
       t != BRIDGE_UINT64 && t != BRIDGE_FLOAT && t != BRIDGE_DOUBLE && t != BRIDGE_CUSTOM)                       \
     throw std::runtime_error("datatype check error");
 
+/*
+ * 在BRIDGE_xxx整型字面量和bridge支持的类型间建立映射关系
+ * 这种映射关系并不是一一对应的，例如：
+ *   c-style string、std::string、std::string_view均映射为BRIDGE_STRING;
+ *   BRIDGE_CUSTOM 和 BRIDGE_BYTES 均映射为std::vector<char>;
+ * 但是不会出现歧义。
+ */
+
 template <typename T>
 struct InnerDataTypeTrait;
 
@@ -41,7 +49,7 @@ struct InnerDataTypeTrait<T> {
     static constexpr uint8_t dt = BRIDGE_##y; \
   };
 
-DataTypeTraitStruct(std::vector<char>, BYTES);
+DataTypeTraitStruct(bridge_binary_type, BYTES);
 DataTypeTraitStruct(std::string, STRING);
 DataTypeTraitStruct(int32_t, INT32);
 DataTypeTraitStruct(uint32_t, UINT32);
@@ -85,6 +93,10 @@ inline const char* DataTypeToStr(uint8_t data_type) {
   }
 }
 
+/*
+ * 根据指定的类型获取对应的整型字面量
+ */
+
 template <typename T>
 struct DataTypeTrait {
   using decay_t = std::remove_const_t<std::remove_reference_t<T>>;
@@ -101,7 +113,7 @@ struct DataTypeTrait<const char (&)[n]> {
   static constexpr uint8_t dt = BRIDGE_STRING;
 };
 
-using bridge_variant = variant<std::vector<char>, std::string, int32_t, uint32_t, int64_t, uint64_t, float, double>;
+using bridge_variant = variant<bridge_binary_type, std::string, int32_t, uint32_t, int64_t, uint64_t, float, double>;
 // view类型只对于整型数据直接持有，对于字节数组和字符串类型持有string_view引用
 using bridge_view_variant = variant<std::string_view, int32_t, uint32_t, int64_t, uint64_t, float, double>;
 }  // namespace bridge

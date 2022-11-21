@@ -36,10 +36,11 @@ TEST(object, wrapper) {
   ObjectWrapper new_wrapper(new_root.get());
   EXPECT_EQ(new_wrapper.Empty(), false);
   EXPECT_EQ(new_wrapper.GetType().value(), ObjectType::Map);
-  EXPECT_EQ(new_wrapper["key"][0].Get<std::string_view>().value(), "hello");
+  EXPECT_EQ(new_wrapper["key"][0].GetView<std::string>().value(), "hello");
   EXPECT_EQ(new_wrapper["not_exist_key"].Empty(), true);
   EXPECT_EQ(new_wrapper["key"][3].Empty(), true);
-  std::string_view v = new_wrapper["key"][0].Get<std::string_view>().value();
+  
+  std::string_view v = new_wrapper["key"][0].GetView<std::string>().value();
   std::intptr_t p1 = reinterpret_cast<std::intptr_t>(&content[0]);
   std::intptr_t p2 = p1 + content.size();
   std::intptr_t p3 = reinterpret_cast<std::intptr_t>(&v[0]);

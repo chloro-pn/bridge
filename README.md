@@ -124,7 +124,7 @@ int main() {
 ```
 
 ### supported types
-* bridge_data_type:
+* bridge_built_in_type:
   * uint32_t、int32_t、uint64_t、int64_t
   * std::string、std::vector\<char\>、float、double、char(&)[n]、const char(&)[n]
 * bridge_custom_type:

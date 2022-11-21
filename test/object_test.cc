@@ -66,13 +66,13 @@ TEST(object, data_view) {
   char ptr[] = "hello world";
   DataView v(ptr);
   EXPECT_EQ(v.GetDataType(), BRIDGE_STRING);
-  EXPECT_EQ(v.GetStrView(), "hello world");
-  EXPECT_EQ(&v.Get<std::string_view>().value()[0], &ptr[0]);
+  EXPECT_EQ(v.Get<std::string>(), "hello world");
+  EXPECT_EQ(&v.Get<std::string>().value()[0], &ptr[0]);
 
   std::string_view view("this is bridge");
   v = view;
   EXPECT_EQ(v.GetDataType(), BRIDGE_STRING);
-  EXPECT_EQ(v.GetStrView(), "this is bridge");
+  EXPECT_EQ(v.Get<std::string>(), "this is bridge");
 
   v = uint32_t(24);
   EXPECT_EQ(v.GetDataType(), BRIDGE_UINT32);
@@ -84,7 +84,7 @@ TEST(object, data_view) {
   v = tmp;
   EXPECT_EQ(v.GetDataType(), BRIDGE_BYTES);
   char buf[] = {0x00, 0x01, 0x02, 0x0A};
-  EXPECT_EQ(v.Get<std::string_view>().value(), std::string_view(&buf[0], 4));
+  EXPECT_EQ(v.Get<bridge::bridge_binary_type>().value(), std::string_view(&buf[0], 4));
 }
 
 TEST(object, array) {
