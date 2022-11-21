@@ -496,7 +496,7 @@ struct ArrayItem : public DontRequireDestruct {
 
 class Array : public Object, public BridgeContainerType<Array>, public DontRequireDestruct {
  public:
-  explicit Array(BridgePool& bp)
+  BRIDGE_API explicit Array(BridgePool& bp)
       : Object(ObjectType::Array, false), BridgeContainerType<Array>(bp), last_child_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<ArrayItem*, ArrayItem*, size_t, BridgePool>& block) {
@@ -512,7 +512,7 @@ class Array : public Object, public BridgeContainerType<Array>, public DontRequi
     size_ = size_ + count;
   }
 
-  void Insert(unique_ptr<Object>&& value) {
+  BRIDGE_API void Insert(unique_ptr<Object>&& value) {
     auto node = bridge_pool_.array_item();
     node->node_ = std::move(value);
     if (last_child_ != nullptr) {
@@ -524,15 +524,15 @@ class Array : public Object, public BridgeContainerType<Array>, public DontRequi
     size_ += 1;
   }
 
-  void Clear() {
+  BRIDGE_API void Clear() {
     // 由资源池释放资源
     last_child_ = nullptr;
     size_ = 0;
   }
 
-  size_t Size() const { return size_; }
+  BRIDGE_API size_t Size() const { return size_; }
 
-  const Object* operator[](size_t n) const {
+  BRIDGE_API const Object* operator[](size_t n) const {
     if (n >= Size()) {
       return nullptr;
     }
@@ -634,9 +634,9 @@ class Array : public Object, public BridgeContainerType<Array>, public DontRequi
     const Object* GetValue() const { return item_->node_.get(); }
   };
 
-  auto Begin() const { return ArrayIterator(last_child_); }
+  BRIDGE_API auto Begin() const { return ArrayIterator(last_child_); }
 
-  auto End() const { return ArrayIterator(nullptr); }
+  BRIDGE_API auto End() const { return ArrayIterator(nullptr); }
 
   using iter_type = ArrayIterator;
 
@@ -674,7 +674,7 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  explicit Map(BridgePool& bp)
+  BRIDGE_API explicit Map(BridgePool& bp)
       : Object(ObjectType::Map, false), BridgeContainerType<Map>(bp), last_node_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<MapItem*, MapItem*, size_t, BridgePool>& block) {
@@ -690,7 +690,7 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     size_ = size_ + count;
   }
 
-  void Insert(const std::string& key, unique_ptr<Object>&& value) {
+  BRIDGE_API void Insert(const std::string& key, unique_ptr<Object>&& value) {
     auto node = bridge_pool_.map_item();
     node->key_ = key;
     node->value_ = std::move(value);
@@ -703,7 +703,7 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     size_ += 1;
   }
 
-  const Object* operator[](const std::string& key) const {
+  BRIDGE_API const Object* operator[](const std::string& key) const {
     MapItem* cur = last_node_;
     while (cur != nullptr) {
       if (cur->key_ == key) {
@@ -725,16 +725,16 @@ class Map : public Object, public BridgeContainerType<Map>, public RequireDestru
     return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
 
-  size_t Size() const { return size_; }
+  BRIDGE_API size_t Size() const { return size_; }
 
-  void Clear() {
+  BRIDGE_API void Clear() {
     last_node_ = nullptr;
     size_ = 0;
   }
 
-  auto Begin() const { return MapIterator(last_node_); }
+  BRIDGE_API auto Begin() const { return MapIterator(last_node_); }
 
-  auto End() const { return MapIterator(nullptr); }
+  BRIDGE_API auto End() const { return MapIterator(nullptr); }
 
   template <typename Inner>
   requires bridge_inner_concept<Inner>
@@ -833,7 +833,7 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     const Object* GetValue() const { return item_->value_.get(); }
   };
 
-  explicit MapView(BridgePool& bp)
+  BRIDGE_API explicit MapView(BridgePool& bp)
       : Object(ObjectType::Map, true), BridgeContainerType<MapView>(bp), last_node_(nullptr), size_(0) {}
 
   void Merge(const std::tuple<MapViewItem*, MapViewItem*, size_t, BridgePool>& block) {
@@ -849,7 +849,7 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     size_ = size_ + count;
   }
 
-  const Object* operator[](const std::string& key) const {
+  BRIDGE_API const Object* operator[](const std::string& key) const {
     MapViewItem* cur = last_node_;
     while (cur != nullptr) {
       if (cur->key_ == key) {
@@ -918,13 +918,13 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     }
   }
 
-  auto Begin() const { return MapViewIterator(last_node_); }
+  BRIDGE_API auto Begin() const { return MapViewIterator(last_node_); }
 
-  auto End() const { return MapViewIterator(nullptr); }
+  BRIDGE_API auto End() const { return MapViewIterator(nullptr); }
 
-  size_t Size() const { return size_; }
+  BRIDGE_API size_t Size() const { return size_; }
 
-  void Clear() {
+  BRIDGE_API void Clear() {
     last_node_ = nullptr;
     size_ = 0;
   }
@@ -940,7 +940,7 @@ class MapView : public Object, public BridgeContainerType<MapView>, public DontR
     return unique_ptr<Object>(nullptr, object_pool_deleter);
   }
 
-  void Insert(std::string_view key_view, unique_ptr<Object>&& value) {
+  BRIDGE_API void Insert(std::string_view key_view, unique_ptr<Object>&& value) {
     auto node = bridge_pool_.map_view_item();
     node->key_ = key_view;
     node->value_ = std::move(value);
@@ -1077,7 +1077,7 @@ class ObjectWrapperIterator {
   ObjectWrapperIterator(holder_type_array iter, holder_type_array end)
       : iter_array_(iter), end_array_(end), itype_(IteratorType::Array) {}
 
-  bool Valid() const {
+  BRIDGE_API bool Valid() const {
     if (itype_ == IteratorType::Map) {
       return iter_ != end_;
     } else if (itype_ == IteratorType::MapView) {
@@ -1088,7 +1088,7 @@ class ObjectWrapperIterator {
     throw std::runtime_error("invalid iterator type on Valid");
   }
 
-  ObjectWrapperIterator& operator++() {
+  BRIDGE_API ObjectWrapperIterator& operator++() {
     if (itype_ == IteratorType::Map) {
       ++iter_;
     } else if (itype_ == IteratorType::MapView) {
@@ -1101,7 +1101,7 @@ class ObjectWrapperIterator {
     return *this;
   }
 
-  std::string_view GetKey() const {
+  BRIDGE_API std::string_view GetKey() const {
     if (itype_ == IteratorType::Map) {
       return iter_.GetKey();
     } else if (itype_ == IteratorType::MapView) {
@@ -1111,9 +1111,9 @@ class ObjectWrapperIterator {
     }
   }
 
-  ObjectWrapper GetValue() const;
+  BRIDGE_API ObjectWrapper GetValue() const;
 
-  IteratorType GetType() const { return itype_; }
+  BRIDGE_API IteratorType GetType() const { return itype_; }
 
  private:
   holder_type iter_;
@@ -1159,18 +1159,18 @@ struct get_proxy_ {
 
 class ObjectWrapper {
  public:
-  ObjectWrapper() : obj_(nullptr) {}
+  BRIDGE_API ObjectWrapper() : obj_(nullptr) {}
 
-  explicit ObjectWrapper(const Object* obj) : obj_(obj) {}
+  BRIDGE_API explicit ObjectWrapper(const Object* obj) : obj_(obj) {}
 
-  std::optional<ObjectType> GetType() const {
+  BRIDGE_API std::optional<ObjectType> GetType() const {
     if (obj_ == nullptr) {
       return std::optional<ObjectType>();
     }
     return obj_->GetType();
   }
 
-  ObjectWrapper operator[](const std::string& key) const {
+  BRIDGE_API ObjectWrapper operator[](const std::string& key) const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Map) {
       return ObjectWrapper(nullptr);
     }
@@ -1181,7 +1181,7 @@ class ObjectWrapper {
     }
   }
 
-  std::optional<ObjectWrapperIterator> GetIteraotr() const {
+  BRIDGE_API std::optional<ObjectWrapperIterator> GetIteraotr() const {
     if (obj_ == nullptr || (obj_->GetType() != ObjectType::Map && obj_->GetType() != ObjectType::Array)) {
       return std::optional<ObjectWrapperIterator>();
     }
@@ -1198,14 +1198,14 @@ class ObjectWrapper {
     }
   }
 
-  ObjectWrapper operator[](size_t n) const {
+  BRIDGE_API ObjectWrapper operator[](size_t n) const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Array) {
       return ObjectWrapper(nullptr);
     }
     return ObjectWrapper(static_cast<const Array*>(obj_)->operator[](n));
   }
 
-  std::optional<size_t> Size() const {
+  BRIDGE_API std::optional<size_t> Size() const {
     if (obj_ == nullptr || (obj_->GetType() != ObjectType::Map && obj_->GetType() != ObjectType::Array)) {
       return std::optional<size_t>();
     }
@@ -1220,17 +1220,17 @@ class ObjectWrapper {
   }
 
   template <typename T>
-  auto Get() const {
+  BRIDGE_API auto Get() const {
     return detail::get_proxy_<T>(obj_).Get();
   }
 
   template <typename T>
-  auto GetView() const {
+  BRIDGE_API auto GetView() const {
     return detail::get_proxy_<T>(obj_).GetView();
   }
 
   template <typename T>
-  const T* GetPtr() const {
+  BRIDGE_API const T* GetPtr() const {
     if (obj_ == nullptr || obj_->GetType() != ObjectType::Data) {
       return nullptr;
     }
@@ -1241,7 +1241,7 @@ class ObjectWrapper {
     return static_cast<const Data*>(obj_)->GetPtr<T>();
   }
 
-  bool Empty() const { return obj_ == nullptr; }
+  BRIDGE_API bool Empty() const { return obj_ == nullptr; }
 
  private:
   const Object* obj_;
@@ -1268,7 +1268,7 @@ inline Map* AsMap(Object* obj) {
 
 inline const Map* AsMap(const Object* obj) { return AsMap(const_cast<Object*>(obj)); }
 
-inline Map* AsMap(unique_ptr<Object>& obj) { return AsMap(obj.get()); }
+BRIDGE_API inline Map* AsMap(unique_ptr<Object>& obj) { return AsMap(obj.get()); }
 
 inline Array* AsArray(Object* obj) {
   if (obj->GetType() != ObjectType::Array) {
@@ -1279,7 +1279,7 @@ inline Array* AsArray(Object* obj) {
 
 inline const Array* AsArray(const Object* obj) { return AsArray(const_cast<Object*>(obj)); }
 
-inline Array* AsArray(unique_ptr<Object>& obj) { return AsArray(obj.get()); }
+BRIDGE_API inline Array* AsArray(unique_ptr<Object>& obj) { return AsArray(obj.get()); }
 
 inline Data* AsData(Object* obj) {
   if (obj->GetType() != ObjectType::Data || obj->IsRefType() == true) {
@@ -1290,7 +1290,7 @@ inline Data* AsData(Object* obj) {
 
 inline const Data* AsData(const Object* obj) { return AsData(const_cast<Object*>(obj)); }
 
-inline Data* AsData(unique_ptr<Object>& obj) { return AsData(obj.get()); }
+BRIDGE_API inline Data* AsData(unique_ptr<Object>& obj) { return AsData(obj.get()); }
 
 // 协程Executor
 using namespace async_simple::coro;
@@ -1668,7 +1668,7 @@ inline std::string SerializeReplace(unique_ptr<Object>&& obj, BridgePool& bp) {
 }
 
 template <SeriType type = SeriType::NORMAL>
-inline std::string Serialize(unique_ptr<Object>&& obj, BridgePool& bp) {
+BRIDGE_API inline std::string Serialize(unique_ptr<Object>&& obj, BridgePool& bp) {
   if constexpr (type == SeriType::NORMAL) {
     return SerializeNormal(std::move(obj), bp);
   } else {
@@ -1828,7 +1828,7 @@ struct ParseOption {
   size_t worker_num_ = 1;
 };
 
-inline unique_ptr<Object> Parse(const std::string& content, BridgePool& bp, ParseOption po = ParseOption()) {
+BRIDGE_API inline unique_ptr<Object> Parse(const std::string& content, BridgePool& bp, ParseOption po = ParseOption()) {
   if (po.type == SchedulerType::Normal) {
     NormalScheduler ns(content, po.parse_ref, bp);
     return ns.Parse();
