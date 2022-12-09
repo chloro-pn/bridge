@@ -1,8 +1,12 @@
 #include "async_simple/coro/Lazy.h"
+#include "async_simple/coro/Collect.h"
 #include "async_simple/coro/SyncAwait.h"
 #include "bridge/async_executor/executor.h"
 #include "bridge/object.h"
 #include "gtest/gtest.h"
+
+#include <thread>
+#include <iostream>
 
 using namespace async_simple::coro;
 using namespace bridge;
@@ -12,6 +16,35 @@ Lazy<int> Add() { co_return 1 + 2; }
 TEST(async_simple, basic) {
   int num = syncAwait(Add());
   EXPECT_EQ(num, 3);
+}
+
+Lazy<size_t> cor(size_t sec) {
+  std::this_thread::sleep_for(std::chrono::seconds(sec));
+  std::cout << " cor " << sec << " return" << std::endl;
+  co_return sec;
+}
+
+Lazy<void> AnyTest(size_t& idx, size_t& res) {
+  std::vector<Lazy<size_t>> cors;
+  cors.push_back(std::move(cor(5)));
+  cors.push_back(std::move(cor(1)));
+  cors.push_back(std::move(cor(3)));
+
+  auto ret = co_await collectAny(std::move(cors));
+  idx = ret._idx;
+  res = ret._value.value();
+  co_return;
+}
+
+TEST(async_simple, collect_any) {
+  BridgeExecutor e(3);
+  size_t idx = 100;
+  size_t res = 0;
+  auto h = AnyTest(idx, res).via(&e);
+  syncAwait(std::move(h));
+  // bug，总是等待第一个协程执行完毕，没有将协程交给executor调度
+  EXPECT_EQ(idx, 1);
+  EXPECT_EQ(res, 1);
 }
 
 TEST(async_simple, task) {
