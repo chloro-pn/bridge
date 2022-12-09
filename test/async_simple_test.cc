@@ -24,11 +24,11 @@ Lazy<size_t> cor(size_t sec) {
   co_return sec;
 }
 
-Lazy<void> AnyTest(size_t& idx, size_t& res) {
-  std::vector<Lazy<size_t>> cors;
-  cors.push_back(std::move(cor(5)));
-  cors.push_back(std::move(cor(1)));
-  cors.push_back(std::move(cor(3)));
+Lazy<void> AnyTest(size_t& idx, size_t& res, BridgeExecutor& e) {
+  std::vector<RescheduleLazy<size_t>> cors;
+  cors.push_back(std::move(cor(5).via(&e)));
+  cors.push_back(std::move(cor(1).via(&e)));
+  cors.push_back(std::move(cor(3).via(&e)));
 
   auto ret = co_await collectAny(std::move(cors));
   idx = ret._idx;
@@ -40,7 +40,7 @@ TEST(async_simple, collect_any) {
   BridgeExecutor e(3);
   size_t idx = 100;
   size_t res = 0;
-  auto h = AnyTest(idx, res).via(&e);
+  auto h = AnyTest(idx, res, e).via(&e);
   syncAwait(std::move(h));
   // bug，总是等待第一个协程执行完毕，没有将协程交给executor调度
   EXPECT_EQ(idx, 1);
